@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   X,
   Users,
+  ChevronRight,
 } from "lucide-react";
 
 // Harmonious chip colors for skills
@@ -494,7 +495,7 @@ export default function StudentDiscoverPage() {
                   <div className="space-y-4">
                     {/* Top row: Avatar with Online Dot + Rating */}
                     <div className="flex items-start justify-between">
-                      <div className="relative">
+                      <Link href={`/teacher/${teacher.id}`} className="relative block group-hover:opacity-95 transition-opacity">
                         {teacher.avatar_url ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img
@@ -515,7 +516,7 @@ export default function StudentDiscoverPage() {
                           className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white"
                           title="Online now"
                         />
-                      </div>
+                      </Link>
 
                       {/* Dynamic Rating / New Badge */}
                       {(() => {
@@ -542,9 +543,11 @@ export default function StudentDiscoverPage() {
 
                     {/* Teacher Name & Short Tagline */}
                     <div>
-                      <h3 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">
-                        {displayName}
-                      </h3>
+                      <Link href={`/teacher/${teacher.id}`} className="block">
+                        <h3 className="text-lg font-bold text-slate-900 tracking-tight group-hover:text-indigo-600 transition-colors">
+                          {displayName}
+                        </h3>
+                      </Link>
                       <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
                         Verified Mentor &bull; Live 1-on-1 Micro-Sessions
                       </p>
@@ -580,8 +583,8 @@ export default function StudentDiscoverPage() {
                     </div>
                   </div>
 
-                  {/* Prominent Indigo "Request Session" Button */}
-                  <div className="pt-2 border-t border-slate-100">
+                  {/* Actions: Request Live Session & View Profile / Book */}
+                  <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => handleRequestSession(teacher)}
@@ -591,15 +594,23 @@ export default function StudentDiscoverPage() {
                       {isRequesting ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin text-white" />
-                          <span>Creating Room...</span>
+                          <span>Connecting...</span>
                         </>
                       ) : (
                         <>
                           <Video className="h-4 w-4" />
-                          <span>Request Session</span>
+                          <span>Connect Instantly</span>
                         </>
                       )}
                     </button>
+
+                    <Link
+                      href={`/teacher/${teacher.id}`}
+                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-colors text-center"
+                    >
+                      <span>View Profile &amp; Book Slots</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+                    </Link>
                   </div>
                 </div>
               );

@@ -161,7 +161,19 @@ export default function StudentDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [requestingTeacherId, setRequestingTeacherId] = useState<string | null>(null);
 
-  // Recent / Upcoming Sessions
+  // Scheduled & Recent Sessions
+  const [scheduledSessions, setScheduledSessions] = useState<
+    Array<{
+      id: string;
+      teacherName: string;
+      teacherAvatarUrl: string | null;
+      scheduled_start_time: string;
+      scheduled_end_time: string | null;
+      status: string;
+      room_url: string;
+    }>
+  >([]);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
   const [recentSessions, setRecentSessions] = useState<
     Array<{
       id: string;
@@ -173,6 +185,14 @@ export default function StudentDashboardPage() {
     }>
   >([]);
   const [completedSessionsCount, setCompletedSessionsCount] = useState(0);
+
+  // Real-time ticking timer for countdown accuracy
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Toast / feedback message
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -223,6 +243,7 @@ export default function StudentDashboardPage() {
               "Student",
             full_name: user.user_metadata?.full_name || null,
             avatar_url: null,
+            bio: null,
             role: "student",
             is_online: true,
             skills: [],
@@ -232,39 +253,68 @@ export default function StudentDashboardPage() {
           setProfile(fallbackProfile);
         }
 
-        // Fetch student sessions
+        // Fetch upcoming scheduled sessions
+        const { data: scheduledRows } = await supabase
+          .from("sessions")
+          .select("id, teacher_id, started_at, ended_at, status, room_url, scheduled_start_time, scheduled_end_time")
+          .eq("student_id", user.id)
+          .eq("status", "scheduled")
+          .order("scheduled_start_time", { ascending: true });
+
+        // Fetch past / recent sessions
         const { data: sessionRows } = await supabase
           .from("sessions")
-          .select("id, teacher_id, started_at, ended_at, status, room_url")
+          .select("id, teacher_id, started_at, ended_at, status, room_url, scheduled_start_time, scheduled_end_time")
           .eq("student_id", user.id)
+          .neq("status", "scheduled")
           .order("started_at", { ascending: false })
           .limit(5);
 
-        if (sessionRows && sessionRows.length > 0) {
-          const teacherIds = Array.from(new Set(sessionRows.map((s) => s.teacher_id)));
+        const allRows = [...(scheduledRows || []), ...(sessionRows || [])];
+        if (allRows.length > 0) {
+          const teacherIds = Array.from(new Set(allRows.map((s) => s.teacher_id).filter(Boolean)));
           const { data: teacherProfiles } = await supabase
             .from("profiles")
-            .select("id, full_name, username")
+            .select("id, full_name, username, avatar_url")
             .in("id", teacherIds);
 
-          const teacherMap: Record<string, string> = {};
+          const teacherMap: Record<string, { name: string; avatarUrl: string | null }> = {};
           teacherProfiles?.forEach((t) => {
-            teacherMap[t.id] = t.full_name || t.username || "Mentor";
+            teacherMap[t.id] = {
+              name: t.full_name || t.username || "Mentor",
+              avatarUrl: t.avatar_url || null,
+            };
           });
 
-          setRecentSessions(
-            sessionRows.map((s) => ({
-              id: s.id,
-              teacherName: teacherMap[s.teacher_id] || "Mentor",
-              started_at: s.started_at,
-              ended_at: s.ended_at,
-              status: s.status,
-              room_url: s.room_url,
-            }))
-          );
+          if (scheduledRows) {
+            setScheduledSessions(
+              scheduledRows.map((s) => ({
+                id: s.id,
+                teacherName: teacherMap[s.teacher_id]?.name || "Mentor",
+                teacherAvatarUrl: teacherMap[s.teacher_id]?.avatarUrl || null,
+                scheduled_start_time: s.scheduled_start_time || s.started_at,
+                scheduled_end_time: s.scheduled_end_time,
+                status: s.status,
+                room_url: s.room_url || `/session/${s.id}`,
+              }))
+            );
+          }
 
-          const completed = sessionRows.filter((s) => s.status === "completed").length;
-          setCompletedSessionsCount(completed);
+          if (sessionRows) {
+            setRecentSessions(
+              sessionRows.map((s) => ({
+                id: s.id,
+                teacherName: teacherMap[s.teacher_id]?.name || "Mentor",
+                started_at: s.started_at,
+                ended_at: s.ended_at,
+                status: s.status,
+                room_url: s.room_url || `/session/${s.id}`,
+              }))
+            );
+
+            const completed = sessionRows.filter((s) => s.status === "completed").length;
+            setCompletedSessionsCount(completed);
+          }
         }
       } catch (err) {
         console.error("Failed to load student profile:", err);
@@ -685,13 +735,154 @@ export default function StudentDashboardPage() {
           )}
         </div>
 
-        {/* ================= 4. UPCOMING & RECENT SESSIONS SECTION ================= */}
+        {/* ================= 4. UPCOMING SCHEDULED SESSIONS SECTION ================= */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Upcoming Scheduled Sessions
+              </h2>
+              {scheduledSessions.length > 0 && (
+                <Badge variant="indigo" className="text-xs font-semibold">
+                  {scheduledSessions.length} Booked
+                </Badge>
+              )}
+            </div>
+            <Link
+              href="/student/discover"
+              className="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+            >
+              <span>Book New Session</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {scheduledSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scheduledSessions.map((session) => {
+                const startMs = new Date(session.scheduled_start_time).getTime();
+                const opensAtMs = startMs - 5 * 60 * 1000;
+                const isJoinable = nowMs >= opensAtMs;
+                const diffUntilOpen = Math.max(0, Math.floor((opensAtMs - nowMs) / 1000));
+
+                const formatCountdown = (diffSeconds: number) => {
+                  const days = Math.floor(diffSeconds / 86400);
+                  const hours = Math.floor((diffSeconds % 86400) / 3600);
+                  const minutes = Math.floor((diffSeconds % 3600) / 60);
+                  const seconds = diffSeconds % 60;
+                  if (days > 0) return `${days}d ${hours}h`;
+                  if (hours > 0) return `${hours}h ${minutes}m`;
+                  if (minutes > 0) return `${minutes}m ${seconds}s`;
+                  return `${seconds}s`;
+                };
+
+                const formattedDate = new Date(session.scheduled_start_time).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                });
+                const formattedTime = new Date(session.scheduled_start_time).toLocaleTimeString(undefined, {
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+
+                return (
+                  <Card
+                    key={session.id}
+                    className={`p-5 transition-all flex flex-col justify-between ${
+                      isJoinable
+                        ? "border-emerald-300 bg-emerald-50/20 shadow-sm"
+                        : "border-slate-200/90 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        {isJoinable ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Ready to Join
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Clock className="h-3 w-3" />
+                            Opens in {formatCountdown(diffUntilOpen)}
+                          </span>
+                        )}
+
+                        <span className="text-xs text-slate-500 font-mono">
+                          {formattedDate}
+                        </span>
+                      </div>
+
+                      <div className="mt-3.5">
+                        <h4 className="font-bold text-slate-900 text-base truncate">
+                          {session.teacherName}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 font-medium">
+                          <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                          <span>{formattedTime}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-3 border-t border-slate-100">
+                      {isJoinable ? (
+                        <Link href={session.room_url || `/session/${session.id}`} className="w-full">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold shadow-xs cursor-pointer"
+                          >
+                            <Video className="h-4 w-4" />
+                            <span>Join Video Call Now</span>
+                          </Button>
+                        </Link>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled
+                            className="w-full gap-2 text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed text-xs font-medium"
+                          >
+                            <Clock className="h-3.5 w-3.5 text-slate-400" />
+                            <span>Opens 5m before start</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="p-6 text-center border-dashed border-slate-200 bg-white">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 mb-2.5">
+                <Calendar className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                No upcoming scheduled sessions
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                Browse our teachers to book a future 1-on-1 tutoring appointment from their available slots.
+              </p>
+              <Link href="/student/discover" className="inline-block mt-3">
+                <Button variant="outline" size="sm" className="text-xs">
+                  Browse Teachers &amp; Availability
+                </Button>
+              </Link>
+            </Card>
+          )}
+        </div>
+
+        {/* ================= 5. RECENT SESSIONS SECTION ================= */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-indigo-600" />
               <h2 className="text-xl font-bold text-slate-900">
-                Recent &amp; Upcoming Sessions
+                Recent Sessions &amp; History
               </h2>
             </div>
             <Link
@@ -769,25 +960,16 @@ export default function StudentDashboardPage() {
               })}
             </div>
           ) : (
-            /* Friendly Empty State with Illustration for Upcoming Sessions */
-            <Card className="p-8 sm:p-10 text-center border-dashed border-slate-200 bg-white">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 mb-3.5">
-                <CalendarX2 className="h-7 w-7 text-indigo-500" />
+            <Card className="p-6 text-center border-dashed border-slate-200 bg-white">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 border border-slate-100 text-slate-400 mb-2.5">
+                <CalendarX2 className="h-6 w-6 text-indigo-500" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">
-                No Upcoming Sessions
+              <h3 className="text-sm font-bold text-slate-900">
+                No past sessions yet
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mt-1">
-                You don&apos;t have any scheduled sessions right now. Browse online mentors above and start your first session with a single click!
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                Completed tutoring calls and your ratings will appear here after you finish a session.
               </p>
-              <div className="mt-4">
-                <Link href="/student/discover">
-                  <Button variant="primary" size="sm" className="gap-2">
-                    <Compass className="h-4 w-4" />
-                    <span>Find a Teacher</span>
-                  </Button>
-                </Link>
-              </div>
             </Card>
           )}
         </div>

@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ExternalLink,
   ShieldCheck,
+  CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,11 +106,11 @@ export function DashboardShell({
       description: "Command center & stats",
     },
     {
-      id: "sessions",
-      label: "Sessions",
-      href: "/teacher/dashboard#sessions",
-      icon: Video,
-      description: "Live session requests",
+      id: "availability",
+      label: "Availability",
+      href: "/teacher/availability",
+      icon: CalendarDays,
+      description: "Manage booking slots",
     },
     {
       id: "history",
@@ -134,6 +135,8 @@ export function DashboardShell({
   const handleOpenProfile = () => {
     if (onProfileClick) {
       onProfileClick();
+    } else if (role === "teacher") {
+      router.push("/teacher/profile/settings");
     } else {
       setIsProfileModalOpen(true);
     }
@@ -208,27 +211,50 @@ export function DashboardShell({
           })}
 
           {/* Profile Item */}
-          <button
-            type="button"
-            onClick={handleOpenProfile}
-            className={`w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
-              activeItem === "profile"
-                ? "bg-indigo-50 text-indigo-700 font-bold"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <User
-                className={`h-4.5 w-4.5 transition-colors ${
-                  activeItem === "profile"
-                    ? "text-indigo-600"
-                    : "text-slate-400 group-hover:text-slate-600"
-                }`}
-              />
-              <span>Profile</span>
-            </div>
-            <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-transform group-hover:translate-x-0.5" />
-          </button>
+          {role === "teacher" ? (
+            <Link
+              href="/teacher/profile/settings"
+              className={`w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                activeItem === "profile" || pathname === "/teacher/profile/settings"
+                  ? "bg-indigo-50 text-indigo-700 font-bold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <User
+                  className={`h-4.5 w-4.5 transition-colors ${
+                    activeItem === "profile" || pathname === "/teacher/profile/settings"
+                      ? "text-indigo-600"
+                      : "text-slate-400 group-hover:text-slate-600"
+                  }`}
+                />
+                <span>Profile</span>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={handleOpenProfile}
+              className={`w-full group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                activeItem === "profile"
+                  ? "bg-indigo-50 text-indigo-700 font-bold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <User
+                  className={`h-4.5 w-4.5 transition-colors ${
+                    activeItem === "profile"
+                      ? "text-indigo-600"
+                      : "text-slate-400 group-hover:text-slate-600"
+                  }`}
+                />
+                <span>Profile</span>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-500 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          )}
         </div>
 
         {/* Public Landing Link & Help */}

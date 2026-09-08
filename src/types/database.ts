@@ -17,6 +17,7 @@ export interface Database {
           username: string;
           full_name: string | null;
           avatar_url: string | null;
+          bio: string | null;
           role: UserRole;
           is_online: boolean;
           skills: string[];
@@ -28,6 +29,7 @@ export interface Database {
           username: string;
           full_name?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           role?: UserRole;
           is_online?: boolean;
           skills?: string[];
@@ -39,6 +41,7 @@ export interface Database {
           username?: string;
           full_name?: string | null;
           avatar_url?: string | null;
+          bio?: string | null;
           role?: UserRole;
           is_online?: boolean;
           skills?: string[];
@@ -64,6 +67,8 @@ export interface Database {
           started_at: string;
           ended_at: string | null;
           status: SessionStatus;
+          scheduled_start_time: string | null;
+          scheduled_end_time: string | null;
           amount: number | null;
         };
         Insert: {
@@ -74,6 +79,8 @@ export interface Database {
           started_at?: string;
           ended_at?: string | null;
           status?: SessionStatus;
+          scheduled_start_time?: string | null;
+          scheduled_end_time?: string | null;
           amount?: number | null;
         };
         Update: {
@@ -84,6 +91,8 @@ export interface Database {
           started_at?: string;
           ended_at?: string | null;
           status?: SessionStatus;
+          scheduled_start_time?: string | null;
+          scheduled_end_time?: string | null;
           amount?: number | null;
         };
         Relationships: [
@@ -161,6 +170,41 @@ export interface Database {
           }
         ];
       };
+      availability_slots: {
+        Row: {
+          id: string;
+          teacher_id: string;
+          start_time: string;
+          end_time: string;
+          is_booked: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          teacher_id: string;
+          start_time: string;
+          end_time: string;
+          is_booked?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          teacher_id?: string;
+          start_time?: string;
+          end_time?: string;
+          is_booked?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "availability_slots_teacher_id_fkey";
+            columns: ["teacher_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -178,7 +222,7 @@ export interface Database {
   };
 }
 
-export type SessionStatus = "pending" | "active" | "completed" | "cancelled";
+export type SessionStatus = "pending" | "active" | "completed" | "cancelled" | "scheduled";
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type ProfileInsert = Database["public"]["Tables"]["profiles"]["Insert"];
@@ -191,3 +235,8 @@ export type SessionUpdate = Database["public"]["Tables"]["sessions"]["Update"];
 export type Review = Database["public"]["Tables"]["reviews"]["Row"];
 export type ReviewInsert = Database["public"]["Tables"]["reviews"]["Insert"];
 export type ReviewUpdate = Database["public"]["Tables"]["reviews"]["Update"];
+
+export type AvailabilitySlot = Database["public"]["Tables"]["availability_slots"]["Row"];
+export type AvailabilitySlotInsert = Database["public"]["Tables"]["availability_slots"]["Insert"];
+export type AvailabilitySlotUpdate = Database["public"]["Tables"]["availability_slots"]["Update"];
+

@@ -19,6 +19,9 @@ import {
   X,
   Loader2,
   Clock,
+  Calendar,
+  ArrowLeft,
+  CheckCircle2,
   AlertCircle,
   RefreshCw,
   User as UserIcon,
@@ -75,6 +78,16 @@ export default function SessionRoomPage() {
 
   // Elapsed Timer state
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Scheduled session countdown & waiting state
+  const [isScheduledWaiting, setIsScheduledWaiting] = useState<boolean>(false);
+  const [scheduledCountdown, setScheduledCountdown] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  } | null>(null);
+  const [secondsUntilOpen, setSecondsUntilOpen] = useState<number>(0);
 
   // Chat state
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
@@ -183,6 +196,21 @@ export default function SessionRoomPage() {
 
         setSession(sessionData as Session);
 
+        // Check if this is a future scheduled session earlier than 5 minutes before start
+        if (sessionData.status === "scheduled" && sessionData.scheduled_start_time) {
+          const scheduledStart = new Date(sessionData.scheduled_start_time).getTime();
+          const opensAt = scheduledStart - 5 * 60 * 1000;
+          const now = Date.now();
+          if (now < opensAt) {
+            setIsScheduledWaiting(true);
+            setSecondsUntilOpen(Math.max(0, Math.floor((opensAt - now) / 1000)));
+          } else {
+            setIsScheduledWaiting(false);
+          }
+        } else {
+          setIsScheduledWaiting(false);
+        }
+
         // Caller is the student who created/requested the session
         const isUserCaller = user?.id === sessionData.student_id;
         setIsCaller(isUserCaller);
@@ -212,6 +240,36 @@ export default function SessionRoomPage() {
 
     loadSessionAndUser();
   }, [sessionId, supabase]);
+
+  // Scheduled session live countdown effect
+  useEffect(() => {
+    if (!isScheduledWaiting || !session?.scheduled_start_time) return;
+
+    const updateCountdown = () => {
+      const scheduledStart = new Date(session.scheduled_start_time!).getTime();
+      const opensAt = scheduledStart - 5 * 60 * 1000;
+      const now = Date.now();
+      const remainingUntilOpen = Math.max(0, Math.floor((opensAt - now) / 1000));
+      const remainingUntilStart = Math.max(0, Math.floor((scheduledStart - now) / 1000));
+
+      setSecondsUntilOpen(remainingUntilOpen);
+
+      const days = Math.floor(remainingUntilStart / 86400);
+      const hours = Math.floor((remainingUntilStart % 86400) / 3600);
+      const minutes = Math.floor((remainingUntilStart % 3600) / 60);
+      const seconds = remainingUntilStart % 60;
+
+      setScheduledCountdown({ days, hours, minutes, seconds });
+
+      if (remainingUntilOpen <= 0) {
+        setIsScheduledWaiting(false);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [isScheduledWaiting, session?.scheduled_start_time]);
 
   // 3. Setup WebRTC PeerConnection & Realtime Signaling
   const startWebRTC = useCallback(async () => {
@@ -427,12 +485,12 @@ export default function SessionRoomPage() {
     }
   }, [sessionId, currentUserId, isCaller, drainQueuedCandidates, supabase]);
 
-  // Trigger WebRTC startup once user ID and session are loaded
+  // Trigger WebRTC startup once user ID and session are loaded (and not waiting for scheduled time)
   useEffect(() => {
     let isCancelled = false;
     let timer: NodeJS.Timeout | null = null;
 
-    if (sessionId && currentUserId && session) {
+    if (sessionId && currentUserId && session && !isScheduledWaiting) {
       timer = setTimeout(() => {
         if (!isCancelled) {
           startWebRTC();
@@ -462,7 +520,7 @@ export default function SessionRoomPage() {
       }
       hasInitializedCall.current = false;
     };
-  }, [sessionId, currentUserId, session, startWebRTC, supabase]);
+  }, [sessionId, currentUserId, session, isScheduledWaiting, startWebRTC, supabase]);
 
   // 4. Realtime Chat Subscription
   useEffect(() => {
@@ -705,6 +763,176 @@ export default function SessionRoomPage() {
     hasInitializedCall.current = false;
     startWebRTC();
   };
+
+  // 9. If session is scheduled and not yet within the 5-minute pre-call window, show waiting countdown screen
+  if (isScheduledWaiting && session) {
+    const scheduledStart = session.scheduled_start_time ? new Date(session.scheduled_start_time) : null;
+    const dateFormatted = scheduledStart
+      ? scheduledStart.toLocaleDateString(undefined, {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "Scheduled Date";
+    const timeFormatted = scheduledStart
+      ? scheduledStart.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      : "";
+
+    const dashboardUrl = userRole === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
+
+    const formatWaitTime = (sec: number) => {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      if (h > 0) return `${h}h ${m}m ${s}s`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    };
+
+    return (
+      <div className="min-h-screen w-screen bg-slate-950 text-white flex flex-col justify-between font-sans selection:bg-indigo-600 selection:text-white">
+        {/* Top bar */}
+        <header className="h-16 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 flex items-center justify-between z-20 shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-xs">
+              <Zap className="h-4.5 w-4.5 fill-current" />
+            </div>
+            <span className="font-bold text-white text-base tracking-tight">
+              Utopians<span className="text-indigo-400">Core</span>
+            </span>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-950/80 border border-indigo-700/50 px-3 py-1 text-xs font-medium text-indigo-300">
+              <Clock className="h-3.5 w-3.5 text-indigo-400" />
+              Scheduled Session Waiting Room
+            </span>
+            <Link
+              href={dashboardUrl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-medium text-slate-300 hover:text-white transition-all"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Back to Dashboard</span>
+            </Link>
+          </div>
+        </header>
+
+        {/* Main Waiting Card */}
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-xl bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-10 shadow-2xl backdrop-blur-xl text-center relative overflow-hidden">
+            {/* Ambient background glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-36 bg-indigo-500/15 blur-3xl pointer-events-none" />
+
+            <div className="relative z-10">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-wider mb-6">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>Upcoming Scheduled Session</span>
+              </div>
+
+              {/* Title & Peer info */}
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                Get Ready for Your Call
+              </h1>
+              <p className="text-slate-400 text-sm sm:text-base mt-2 max-w-md mx-auto">
+                Scheduled 1-on-1 tutoring with{" "}
+                <span className="text-indigo-300 font-semibold">{peerName}</span>
+              </p>
+
+              {/* Date & Time pill */}
+              <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-800/70 border border-slate-700/60 text-xs sm:text-sm text-slate-300 font-mono">
+                <Calendar className="h-4 w-4 text-indigo-400" />
+                <span>{dateFormatted} at {timeFormatted}</span>
+              </div>
+
+              {/* Countdown Clocks Grid */}
+              <div className="mt-8 grid grid-cols-4 gap-2.5 sm:gap-4 max-w-md mx-auto">
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 sm:p-4 text-center">
+                  <span className="block text-2xl sm:text-4xl font-black text-white font-mono tracking-tight">
+                    {String(scheduledCountdown?.days || 0).padStart(2, "0")}
+                  </span>
+                  <span className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase mt-1 tracking-wider">
+                    Days
+                  </span>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 sm:p-4 text-center">
+                  <span className="block text-2xl sm:text-4xl font-black text-white font-mono tracking-tight">
+                    {String(scheduledCountdown?.hours || 0).padStart(2, "0")}
+                  </span>
+                  <span className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase mt-1 tracking-wider">
+                    Hours
+                  </span>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 sm:p-4 text-center">
+                  <span className="block text-2xl sm:text-4xl font-black text-white font-mono tracking-tight">
+                    {String(scheduledCountdown?.minutes || 0).padStart(2, "0")}
+                  </span>
+                  <span className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase mt-1 tracking-wider">
+                    Mins
+                  </span>
+                </div>
+                <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 sm:p-4 text-center">
+                  <span className="block text-2xl sm:text-4xl font-black text-indigo-400 font-mono tracking-tight">
+                    {String(scheduledCountdown?.seconds || 0).padStart(2, "0")}
+                  </span>
+                  <span className="block text-[10px] sm:text-xs font-semibold text-slate-400 uppercase mt-1 tracking-wider">
+                    Secs
+                  </span>
+                </div>
+              </div>
+
+              {/* Notice Box */}
+              <div className="mt-8 p-4 rounded-2xl bg-indigo-950/40 border border-indigo-800/40 text-left flex items-start gap-3.5">
+                <Clock className="h-5 w-5 text-indigo-400 shrink-0 mt-0.5" />
+                <div className="text-xs sm:text-sm text-slate-300 space-y-1">
+                  <p className="font-semibold text-white">
+                    Room Unlocks 5 Minutes Prior to Start
+                  </p>
+                  <p className="text-slate-400 leading-relaxed">
+                    This video room will unlock automatically in{" "}
+                    <span className="text-indigo-300 font-mono font-bold">
+                      {formatWaitTime(secondsUntilOpen)}
+                    </span>
+                    . You do not need to refresh this page.
+                  </p>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link href={dashboardUrl} className="w-full sm:w-auto">
+                  <button
+                    type="button"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold transition-all border border-slate-700 cursor-pointer"
+                  >
+                    Return to Dashboard
+                  </button>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setIsScheduledWaiting(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <VideoIcon className="h-4 w-4" />
+                  <span>Enter Room (Early Access)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Footer info */}
+        <footer className="py-4 text-center text-xs text-slate-600 border-t border-slate-900">
+          UtopiansCore &bull; Native WebRTC Peer-to-Peer Tutoring
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col bg-black text-white font-sans overflow-hidden select-none">

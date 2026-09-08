@@ -17,6 +17,8 @@ import {
   Plus,
   PhoneCall,
   Video,
+  Calendar,
+  CalendarDays,
   CalendarX2,
   CheckCircle2,
   AlertCircle,
@@ -69,6 +71,20 @@ export default function TeacherDashboardPage() {
   const [ratingCount, setRatingCount] = useState<number>(0);
   const [totalMinutesTaught, setTotalMinutesTaught] = useState<number>(0);
   const [todaysMinutesTaught, setTodaysMinutesTaught] = useState<number>(0);
+
+  // Scheduled & Recent Sessions
+  const [scheduledSessions, setScheduledSessions] = useState<
+    Array<{
+      id: string;
+      studentName: string;
+      studentAvatarUrl: string | null;
+      scheduled_start_time: string;
+      scheduled_end_time: string | null;
+      status: string;
+      room_url: string;
+    }>
+  >([]);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
   const [recentSessions, setRecentSessions] = useState<
     Array<{
       id: string;
@@ -81,6 +97,14 @@ export default function TeacherDashboardPage() {
       room_url: string;
     }>
   >([]);
+
+  // Real-time ticking timer for countdown accuracy
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 1. Fetch teacher profile & session statistics
   useEffect(() => {
@@ -120,6 +144,7 @@ export default function TeacherDashboardPage() {
               "Teacher",
             full_name: user.user_metadata?.full_name || null,
             avatar_url: user.user_metadata?.avatar_url || null,
+            bio: null,
             role: "teacher",
             is_online: false,
             skills: user.user_metadata?.skills || [],
@@ -134,7 +159,7 @@ export default function TeacherDashboardPage() {
         // Fetch sessions for this teacher
         const { data: teacherSessions } = await supabase
           .from("sessions")
-          .select("id, started_at, ended_at, status, student_id, room_url")
+          .select("id, started_at, ended_at, status, student_id, room_url, scheduled_start_time, scheduled_end_time")
           .eq("teacher_id", user.id)
           .order("started_at", { ascending: false });
 
@@ -163,23 +188,49 @@ export default function TeacherDashboardPage() {
           setTotalMinutesTaught(totalMinutes);
           setTodaysMinutesTaught(todayMinutes);
 
-          // Get recent sessions with student names
-          const recent = teacherSessions.slice(0, 5);
-          const studentIds = Array.from(new Set(recent.map((r) => r.student_id).filter(Boolean)));
-          const studentMap: Record<string, string> = {};
+          // Student profiles for sessions
+          const studentIds = Array.from(new Set(teacherSessions.map((r) => r.student_id).filter(Boolean)));
+          const studentMap: Record<string, { name: string; avatarUrl: string | null }> = {};
 
           if (studentIds.length > 0) {
             const { data: studentProfiles } = await supabase
               .from("profiles")
-              .select("id, full_name, username")
+              .select("id, full_name, username, avatar_url")
               .in("id", studentIds);
 
             if (studentProfiles) {
               studentProfiles.forEach((st) => {
-                studentMap[st.id] = st.full_name || st.username || "Student";
+                studentMap[st.id] = {
+                  name: st.full_name || st.username || "Student",
+                  avatarUrl: st.avatar_url || null,
+                };
               });
             }
           }
+
+          // Scheduled sessions sorted by scheduled start time
+          const scheduled = teacherSessions.filter((s) => s.status === "scheduled");
+          scheduled.sort((a, b) => {
+            const tA = new Date(a.scheduled_start_time || a.started_at).getTime();
+            const tB = new Date(b.scheduled_start_time || b.started_at).getTime();
+            return tA - tB;
+          });
+
+          setScheduledSessions(
+            scheduled.map((s) => ({
+              id: s.id,
+              studentName: studentMap[s.student_id]?.name || "Student Learner",
+              studentAvatarUrl: studentMap[s.student_id]?.avatarUrl || null,
+              scheduled_start_time: s.scheduled_start_time || s.started_at,
+              scheduled_end_time: s.scheduled_end_time,
+              status: s.status,
+              room_url: s.room_url || `/session/${s.id}`,
+            }))
+          );
+
+          // Recent non-scheduled sessions
+          const nonScheduled = teacherSessions.filter((s) => s.status !== "scheduled");
+          const recent = nonScheduled.slice(0, 5);
 
           setRecentSessions(
             recent.map((s) => {
@@ -200,13 +251,13 @@ export default function TeacherDashboardPage() {
               });
               return {
                 id: s.id,
-                studentName: studentMap[s.student_id] || "Student Learner",
+                studentName: studentMap[s.student_id]?.name || "Student Learner",
                 started_at: s.started_at,
                 ended_at: s.ended_at,
                 durationText: duration,
                 dateText,
                 status: s.status,
-                room_url: s.room_url,
+                room_url: s.room_url || `/session/${s.id}`,
               };
             })
           );
@@ -731,13 +782,154 @@ export default function TeacherDashboardPage() {
           </div>
         </Card>
 
-        {/* ================= 4. RECENT SESSION REQUESTS & SESSIONS ================= */}
+        {/* ================= 4. UPCOMING SCHEDULED SESSIONS ================= */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Upcoming Scheduled Sessions
+              </h2>
+              {scheduledSessions.length > 0 && (
+                <Badge variant="indigo" className="text-xs font-semibold">
+                  {scheduledSessions.length} Booked
+                </Badge>
+              )}
+            </div>
+            <Link
+              href="/teacher/availability"
+              className="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span>Manage Availability Slots</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {scheduledSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {scheduledSessions.map((session) => {
+                const startMs = new Date(session.scheduled_start_time).getTime();
+                const opensAtMs = startMs - 5 * 60 * 1000;
+                const isJoinable = nowMs >= opensAtMs;
+                const diffUntilOpen = Math.max(0, Math.floor((opensAtMs - nowMs) / 1000));
+
+                const formatCountdown = (diffSeconds: number) => {
+                  const days = Math.floor(diffSeconds / 86400);
+                  const hours = Math.floor((diffSeconds % 86400) / 3600);
+                  const minutes = Math.floor((diffSeconds % 3600) / 60);
+                  const seconds = diffSeconds % 60;
+                  if (days > 0) return `${days}d ${hours}h`;
+                  if (hours > 0) return `${hours}h ${minutes}m`;
+                  if (minutes > 0) return `${minutes}m ${seconds}s`;
+                  return `${seconds}s`;
+                };
+
+                const formattedDate = new Date(session.scheduled_start_time).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                });
+                const formattedTime = new Date(session.scheduled_start_time).toLocaleTimeString(undefined, {
+                  hour: "numeric",
+                  minute: "2-digit",
+                });
+
+                return (
+                  <Card
+                    key={session.id}
+                    className={`p-5 transition-all flex flex-col justify-between ${
+                      isJoinable
+                        ? "border-emerald-300 bg-emerald-50/20 shadow-sm"
+                        : "border-slate-200/90 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        {isJoinable ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Ready to Join
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <Clock className="h-3 w-3" />
+                            Opens in {formatCountdown(diffUntilOpen)}
+                          </span>
+                        )}
+
+                        <span className="text-xs text-slate-500 font-mono">
+                          {formattedDate}
+                        </span>
+                      </div>
+
+                      <div className="mt-3.5">
+                        <h4 className="font-bold text-slate-900 text-base truncate">
+                          Student: {session.studentName}
+                        </h4>
+                        <p className="text-xs text-slate-600 mt-1 flex items-center gap-1.5 font-medium">
+                          <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                          <span>{formattedTime}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-3 border-t border-slate-100">
+                      {isJoinable ? (
+                        <Link href={session.room_url || `/session/${session.id}`} className="w-full">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-bold shadow-xs cursor-pointer"
+                          >
+                            <Video className="h-4 w-4" />
+                            <span>Join Video Call Now</span>
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled
+                          className="w-full gap-2 text-slate-400 bg-slate-50 border-slate-200 cursor-not-allowed text-xs font-medium"
+                        >
+                          <Clock className="h-3.5 w-3.5 text-slate-400" />
+                          <span>Opens 5m before start</span>
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="p-6 text-center border-dashed border-slate-200 bg-white">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 mb-2.5">
+                <Calendar className="h-6 w-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                No upcoming scheduled appointments
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                Keep your availability slots up to date so students can book tutoring sessions in advance.
+              </p>
+              <Link href="/teacher/availability" className="inline-block mt-3">
+                <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  <span>Configure Availability</span>
+                </Button>
+              </Link>
+            </Card>
+          )}
+        </div>
+
+        {/* ================= 5. RECENT SESSION REQUESTS & SESSIONS ================= */}
         <div id="sessions" className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Video className="h-5 w-5 text-indigo-600" />
               <h2 className="text-xl font-bold text-slate-900">
-                Session Activity &amp; Requests
+                Live Requests &amp; Past Sessions
               </h2>
             </div>
             <Link

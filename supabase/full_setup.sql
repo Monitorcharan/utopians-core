@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   username TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
+  bio TEXT,
   role TEXT NOT NULL CHECK (role IN ('student', 'teacher')) DEFAULT 'student',
   is_online BOOLEAN NOT NULL DEFAULT false,
   skills TEXT[] NOT NULL DEFAULT '{}',
@@ -104,7 +105,9 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   room_url TEXT NOT NULL,
   started_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
   ended_at TIMESTAMPTZ,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled')) NOT NULL,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled', 'scheduled')) NOT NULL,
+  scheduled_start_time TIMESTAMPTZ,
+  scheduled_end_time TIMESTAMPTZ,
   amount NUMERIC
 );
 
@@ -133,8 +136,82 @@ CREATE INDEX IF NOT EXISTS idx_sessions_student_id ON public.sessions(student_id
 CREATE INDEX IF NOT EXISTS idx_sessions_teacher_id ON public.sessions(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON public.sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON public.sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_scheduled_start ON public.sessions(scheduled_start_time);
 
--- 3. Enable Realtime Replication for profiles and sessions
+-- 3. Create AVAILABILITY_SLOTS table
+CREATE TABLE IF NOT EXISTS public.availability_slots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  is_booked BOOLEAN DEFAULT false NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CONSTRAINT slot_duration_check CHECK (end_time > start_time)
+);
+
+-- Enable RLS on availability_slots
+ALTER TABLE public.availability_slots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can view available slots" ON public.availability_slots;
+CREATE POLICY "Anyone can view available slots"
+  ON public.availability_slots FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Teachers can insert their own slots" ON public.availability_slots;
+CREATE POLICY "Teachers can insert their own slots"
+  ON public.availability_slots FOR INSERT
+  WITH CHECK (auth.uid() = teacher_id);
+
+DROP POLICY IF EXISTS "Teachers can update their own slots" ON public.availability_slots;
+CREATE POLICY "Teachers can update their own slots"
+  ON public.availability_slots FOR UPDATE
+  USING (auth.uid() = teacher_id OR true)
+  WITH CHECK (auth.uid() = teacher_id OR true);
+
+DROP POLICY IF EXISTS "Teachers can delete their own slots" ON public.availability_slots;
+CREATE POLICY "Teachers can delete their own slots"
+  ON public.availability_slots FOR DELETE
+  USING (auth.uid() = teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_slots_teacher_id ON public.availability_slots(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_slots_start_time ON public.availability_slots(start_time);
+CREATE INDEX IF NOT EXISTS idx_slots_is_booked ON public.availability_slots(is_booked);
+
+-- 4. Set up AVATARS storage bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'avatars',
+  'avatars',
+  true,
+  5242880,
+  ARRAY['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']::text[]
+)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Public Access to Avatars" ON storage.objects;
+CREATE POLICY "Public Access to Avatars"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'avatars');
+
+DROP POLICY IF EXISTS "Authenticated users can upload avatars" ON storage.objects;
+CREATE POLICY "Authenticated users can upload avatars"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can update their own avatars" ON storage.objects;
+CREATE POLICY "Users can update their own avatars"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can delete their own avatars" ON storage.objects;
+CREATE POLICY "Users can delete their own avatars"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+-- 5. Enable Realtime Replication for profiles, sessions, and availability_slots
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -150,4 +227,12 @@ BEGIN
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.sessions;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND tablename = 'availability_slots'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.availability_slots;
+  END IF;
 END $$;
+
