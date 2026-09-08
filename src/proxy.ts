@@ -49,11 +49,11 @@ export async function proxy(request: NextRequest) {
   const isSessionRoute = pathname.startsWith("/session/");
   const isProtectedRoute = isStudentRoute || isTeacherRoute || isSessionRoute;
 
-  const isAuthPage =
-    pathname === "/student/login" ||
-    pathname === "/student/signup" ||
-    pathname === "/teacher/login" ||
-    pathname === "/teacher/signup";
+  const isStudentAuthPage =
+    pathname === "/student/login" || pathname === "/student/signup";
+  const isTeacherAuthPage =
+    pathname === "/teacher/login" || pathname === "/teacher/signup";
+  const isAuthPage = isStudentAuthPage || isTeacherAuthPage;
 
   // --- Unauthenticated users ---
   if (!user) {
@@ -75,29 +75,59 @@ export async function proxy(request: NextRequest) {
 
   const userRole = profile?.role as "student" | "teacher" | undefined;
 
-  // No profile yet — let them through (mid-signup flow)
+  // If no profile exists (shouldn't happen), log the user out and redirect to /
   if (!userRole) {
-    return supabaseResponse;
-  }
-
-  const dashboardPath =
-    userRole === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
-
-  // Auth pages: already logged in → send to dashboard
-  if (isAuthPage) {
+    await supabase.auth.signOut();
     const url = request.nextUrl.clone();
-    url.pathname = dashboardPath;
+    url.pathname = "/";
+    url.searchParams.set("error", "no_profile");
     return NextResponse.redirect(url);
   }
 
-  // Role-based route enforcement
-  if (isStudentRoute && userRole === "teacher") {
+  // If visiting their OWN role's auth pages, redirect to their dashboard
+  if (userRole === "student" && isStudentAuthPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/student/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  if (userRole === "teacher" && isTeacherAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/teacher/dashboard";
     return NextResponse.redirect(url);
   }
 
-  if (isTeacherRoute && userRole === "student") {
+  // If visiting the OTHER role's signup page, allow through so the page can show:
+  // "You are logged in as a [role]. Please log out first to create a new account."
+  if (pathname === "/teacher/signup" && userRole === "student") {
+    return supabaseResponse;
+  }
+
+  if (pathname === "/student/signup" && userRole === "teacher") {
+    return supabaseResponse;
+  }
+
+  // If visiting the OTHER role's login page, redirect to their dashboard
+  if (pathname === "/teacher/login" && userRole === "student") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/student/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === "/student/login" && userRole === "teacher") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/teacher/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // Role-based protected route enforcement (excluding auth pages)
+  if (isStudentRoute && !isAuthPage && userRole === "teacher") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/teacher/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  if (isTeacherRoute && !isAuthPage && userRole === "student") {
     const url = request.nextUrl.clone();
     url.pathname = "/student/dashboard";
     return NextResponse.redirect(url);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Star, MessageSquare, Loader2, Sparkles, X, CheckCircle2 } from "lucide-react";
+import { Star, MessageSquare, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface RatingModalProps {

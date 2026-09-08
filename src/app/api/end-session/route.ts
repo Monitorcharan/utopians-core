@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { ReviewUpdate, ReviewInsert } from "@/types";
 
 interface EndSessionRequestBody {

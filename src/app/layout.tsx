@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { AppLayoutShell } from "@/components/layout/app-layout-shell";
+import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,7 +35,9 @@ export default function RootLayout({
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col antialiased font-sans">
-        <AppLayoutShell>{children}</AppLayoutShell>
+        <AuthProvider>
+          <AppLayoutShell>{children}</AppLayoutShell>
+        </AuthProvider>
       </body>
     </html>
   );

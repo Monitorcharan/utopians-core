@@ -67,7 +67,8 @@ export function DashboardShell({
       console.error("Error setting offline on logout:", e);
     }
     await supabase.auth.signOut();
-    router.push(role === "teacher" ? "/teacher/login" : "/student/login");
+    router.push("/");
+    router.refresh();
   };
 
   // Define sidebar navigation items based on role
@@ -408,6 +409,18 @@ export function DashboardShell({
               <span className="text-xs font-bold text-slate-700 hidden md:inline group-hover:text-indigo-600">
                 {displayName}
               </span>
+            </button>
+
+            {/* Header Sign Out Button */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/60 transition-all text-xs font-semibold cursor-pointer shadow-2xs"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </header>

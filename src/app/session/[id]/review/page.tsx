@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Profile, Session } from "@/types";
 import {
   Zap,
   Star,
@@ -13,9 +12,8 @@ import {
   CheckCircle2,
   Loader2,
   ArrowRight,
-  Clock,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -34,7 +32,6 @@ export default function SessionReviewPage() {
 
   const sessionId = (params?.sessionId || params?.id) as string;
 
-  const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<"student" | "teacher">("student");
   const [peerName, setPeerName] = useState<string>("Peer");
   const [peerAvatarUrl, setPeerAvatarUrl] = useState<string | null>(null);
@@ -80,8 +77,6 @@ export default function SessionReviewPage() {
           .single();
 
         if (sessionData) {
-          setSession(sessionData as Session);
-
           // Find peer ID
           const peerId =
             role === "student"

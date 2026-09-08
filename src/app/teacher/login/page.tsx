@@ -27,6 +27,33 @@ function TeacherLoginForm() {
       : null
   );
 
+  // Pre-check if already authenticated
+  React.useEffect(() => {
+    async function checkExistingSession() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.role) {
+          router.replace(
+            profile.role === "teacher"
+              ? "/teacher/dashboard"
+              : "/student/dashboard"
+          );
+        } else {
+          await supabase.auth.signOut();
+        }
+      }
+    }
+    checkExistingSession();
+  }, [supabase, router]);
+
   const validate = () => {
     let isValid = true;
     setEmailError(null);
@@ -75,27 +102,29 @@ function TeacherLoginForm() {
 
       if (data?.user) {
         // Fetch profile to verify role
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", data.user.id)
           .single();
+
+        if (profileError || !profile?.role) {
+          await supabase.auth.signOut();
+          router.replace("/?error=profile_not_found");
+          return;
+        }
 
         await supabase
           .from("profiles")
           .update({ is_online: true })
           .eq("id", data.user.id);
 
-        if (profile?.role === "student") {
-          // Wrong login page — redirect to student dashboard
-          setGeneralError("This account is registered as a student. Redirecting...");
-          setTimeout(() => {
-            router.push("/student/dashboard");
-          }, 1500);
+        if (profile.role === "student") {
+          router.replace("/student/dashboard");
           return;
         }
 
-        router.push("/teacher/dashboard");
+        router.replace("/teacher/dashboard");
       }
     } catch (err: unknown) {
       const message =

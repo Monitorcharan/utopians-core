@@ -1,20 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import type { UserRole } from "@/types/database";
+import { useAuthContext } from "@/context/auth-context";
+import type { UserRole, Profile } from "@/types/database";
 
-export interface AuthProfile {
-  id: string;
-  role: UserRole;
-  username: string;
-  full_name: string | null;
-  is_online: boolean;
-}
+export type AuthProfile = Profile;
 
 /**
- * Custom hook that fetches the current user's profile and enforces role-based redirects.
+ * Custom hook that consumes the central AuthContext and enforces role-based redirects.
  *
  * @param expectedRole - If set, redirect the user to the correct dashboard
  *                       when their profile role doesn't match.
@@ -27,77 +21,38 @@ export function useAuth(options?: {
 }) {
   const { expectedRole, redirectIfAuthenticated = false } = options ?? {};
   const router = useRouter();
-  const supabase = createClient();
-
-  const [profile, setProfile] = useState<AuthProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { user, profile, role, isLoading, isAuthenticated, signOut, refreshProfile } =
+    useAuthContext();
 
   useEffect(() => {
-    let cancelled = false;
+    if (isLoading) return;
 
-    async function check() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+    if (isAuthenticated && profile) {
+      const dashboardPath =
+        profile.role === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
 
-        if (!user) {
-          if (!cancelled) {
-            setIsAuthenticated(false);
-            setProfile(null);
-            setIsLoading(false);
-          }
-          return;
-        }
+      // If user is on a login/signup page and already authenticated, redirect them
+      if (redirectIfAuthenticated) {
+        router.replace(dashboardPath);
+        return;
+      }
 
-        // User is authenticated
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("id, role, username, full_name, is_online")
-          .eq("id", user.id)
-          .single();
-
-        if (!cancelled) {
-          setIsAuthenticated(true);
-
-          if (profileData) {
-            setProfile(profileData as AuthProfile);
-
-            const dashboardPath =
-              profileData.role === "teacher"
-                ? "/teacher/dashboard"
-                : "/student/dashboard";
-
-            // If user is on a login/signup page and already authenticated, redirect them
-            if (redirectIfAuthenticated) {
-              router.replace(dashboardPath);
-              return;
-            }
-
-            // If user is on a protected page but has the wrong role, redirect
-            if (expectedRole && profileData.role !== expectedRole) {
-              router.replace(dashboardPath);
-              return;
-            }
-          }
-
-          setIsLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+      // If user is on a protected page but has the wrong role, redirect
+      if (expectedRole && profile.role !== expectedRole) {
+        router.replace(dashboardPath);
+        return;
       }
     }
+  }, [isAuthenticated, profile, expectedRole, redirectIfAuthenticated, isLoading, router]);
 
-    check();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { profile, isLoading, isAuthenticated };
+  return {
+    user,
+    profile,
+    role,
+    isLoading,
+    isAuthenticated,
+    signOut,
+    refreshProfile,
+  };
 }
+
