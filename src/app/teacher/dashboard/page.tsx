@@ -5,10 +5,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Profile, Session } from "@/types";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Zap,
   Bell,
-  LogOut,
   X,
   Plus,
   PhoneCall,
@@ -18,8 +22,11 @@ import {
   AlertCircle,
   Loader2,
   Star,
-  Sparkles,
+  Clock,
+  DollarSign,
   History,
+  BookOpen,
+  ArrowRight,
 } from "lucide-react";
 
 interface IncomingSessionRequest {
@@ -28,16 +35,6 @@ interface IncomingSessionRequest {
   studentName: string;
   roomUrl: string;
 }
-
-// Harmonious chip color palette for teacher skills
-const CHIP_COLORS = [
-  "bg-indigo-50 text-indigo-700 border-indigo-200/80",
-  "bg-emerald-50 text-emerald-700 border-emerald-200/80",
-  "bg-violet-50 text-violet-700 border-violet-200/80",
-  "bg-sky-50 text-sky-700 border-sky-200/80",
-  "bg-amber-50 text-amber-700 border-amber-200/80",
-  "bg-teal-50 text-teal-700 border-teal-200/80",
-];
 
 export default function TeacherDashboardPage() {
   const router = useRouter();
@@ -50,7 +47,7 @@ export default function TeacherDashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
-  // Status feedback toast/banner
+  // Status feedback message
   const [statusMessage, setStatusMessage] = useState<{
     type: "success" | "neutral" | "error";
     text: string;
@@ -61,29 +58,31 @@ export default function TeacherDashboardPage() {
   const [newSkillInput, setNewSkillInput] = useState("");
   const [isSavingSkill, setIsSavingSkill] = useState(false);
 
-  // Real-time Incoming Session Request Modal & Bell State
-  const [incomingRequest, setIncomingRequest] =
-    useState<IncomingSessionRequest | null>(null);
+  // Real-time Incoming Session Request Modal State
+  const [incomingRequest, setIncomingRequest] = useState<IncomingSessionRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isResponding, setIsResponding] = useState<boolean>(false);
 
   // Session stats & recent logs state
-  const [completedSessionsCount, setCompletedSessionsCount] =
-    useState<number>(0);
+  const [completedSessionsCount, setCompletedSessionsCount] = useState<number>(0);
   const [averageRating, setAverageRating] = useState<string | null>(null);
   const [ratingCount, setRatingCount] = useState<number>(0);
+  const [totalMinutesTaught, setTotalMinutesTaught] = useState<number>(0);
+  const [todaysMinutesTaught, setTodaysMinutesTaught] = useState<number>(0);
   const [recentSessions, setRecentSessions] = useState<
     Array<{
       id: string;
       studentName: string;
       started_at: string;
+      ended_at: string | null;
       durationText: string;
       dateText: string;
       status: string;
+      room_url: string;
     }>
   >([]);
 
-  // 1. Fetch teacher profile & initial online status
+  // 1. Fetch teacher profile & session statistics
   useEffect(() => {
     async function loadTeacherProfile() {
       setIsLoading(true);
@@ -100,20 +99,17 @@ export default function TeacherDashboardPage() {
 
         setEmail(user.email || "");
 
-        const { data: profileData, error: profileError } = await supabase
+        // Fetch teacher profile
+        const { data: profileData } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
 
-        if (profileError && profileError.code !== "PGRST116") {
-          console.error("Error loading profile:", profileError);
-        }
-
         if (profileData) {
           setProfile(profileData);
-          setIsOnline(profileData.is_online ?? false);
-          setSkills(profileData.skills ?? []);
+          setIsOnline(Boolean(profileData.is_online));
+          setSkills(profileData.skills || []);
         } else {
           const fallback: Profile = {
             id: user.id,
@@ -135,25 +131,43 @@ export default function TeacherDashboardPage() {
           setSkills(fallback.skills);
         }
 
-        // Fetch sessions & stats for this teacher
+        // Fetch sessions for this teacher
         const { data: teacherSessions } = await supabase
           .from("sessions")
-          .select("id, started_at, ended_at, status, student_id")
+          .select("id, started_at, ended_at, status, student_id, room_url")
           .eq("teacher_id", user.id)
           .order("started_at", { ascending: false });
 
         if (teacherSessions) {
-          const completed = teacherSessions.filter(
-            (s) => s.status === "completed"
-          );
+          const completed = teacherSessions.filter((s) => s.status === "completed");
           setCompletedSessionsCount(completed.length);
 
-          // Get top 3 recent sessions
-          const recent = teacherSessions.slice(0, 3);
-          const studentIds = Array.from(
-            new Set(recent.map((r) => r.student_id).filter(Boolean))
-          );
-          let studentMap: Record<string, string> = {};
+          // Calculate total minutes taught
+          let totalMinutes = 0;
+          let todayMinutes = 0;
+          const todayDateStr = new Date().toDateString();
+
+          completed.forEach((s) => {
+            if (s.started_at && s.ended_at) {
+              const startMs = new Date(s.started_at).getTime();
+              const endMs = new Date(s.ended_at).getTime();
+              const diffMins = Math.max(1, Math.round((endMs - startMs) / 60000));
+              totalMinutes += diffMins;
+
+              if (new Date(s.started_at).toDateString() === todayDateStr) {
+                todayMinutes += diffMins;
+              }
+            }
+          });
+
+          setTotalMinutesTaught(totalMinutes);
+          setTodaysMinutesTaught(todayMinutes);
+
+          // Get recent sessions with student names
+          const recent = teacherSessions.slice(0, 5);
+          const studentIds = Array.from(new Set(recent.map((r) => r.student_id).filter(Boolean)));
+          const studentMap: Record<string, string> = {};
+
           if (studentIds.length > 0) {
             const { data: studentProfiles } = await supabase
               .from("profiles")
@@ -162,8 +176,7 @@ export default function TeacherDashboardPage() {
 
             if (studentProfiles) {
               studentProfiles.forEach((st) => {
-                studentMap[st.id] =
-                  st.full_name || st.username || "Student";
+                studentMap[st.id] = st.full_name || st.username || "Student";
               });
             }
           }
@@ -175,13 +188,10 @@ export default function TeacherDashboardPage() {
                 const diff = Math.max(
                   0,
                   Math.floor(
-                    (new Date(s.ended_at).getTime() -
-                      new Date(s.started_at).getTime()) /
-                      1000
+                    (new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 1000
                   )
                 );
-                duration =
-                  diff < 60 ? `${diff}s` : `${Math.round(diff / 60)}m`;
+                duration = diff < 60 ? `${diff}s` : `${Math.round(diff / 60)} mins`;
               }
               const d = new Date(s.started_at);
               const dateText = d.toLocaleDateString(undefined, {
@@ -192,9 +202,11 @@ export default function TeacherDashboardPage() {
                 id: s.id,
                 studentName: studentMap[s.student_id] || "Student Learner",
                 started_at: s.started_at,
+                ended_at: s.ended_at,
                 durationText: duration,
                 dateText,
                 status: s.status,
+                room_url: s.room_url,
               };
             })
           );
@@ -221,11 +233,11 @@ export default function TeacherDashboardPage() {
               setRatingCount(validRatings.length);
             }
           }
-        } catch {
-          // Graceful fallback if reviews table does not exist
+        } catch (revErr) {
+          console.warn("Reviews load warning:", revErr);
         }
       } catch (err) {
-        console.error("Unexpected error fetching profile:", err);
+        console.error("Failed to load teacher dashboard:", err);
       } finally {
         setIsLoading(false);
       }
@@ -234,11 +246,11 @@ export default function TeacherDashboardPage() {
     loadTeacherProfile();
   }, [router, supabase]);
 
-  // 2. Realtime listeners for session requests targeting this teacher
+  // 2. Real-time Incoming Session Listener
   useEffect(() => {
     if (!profile?.id) return;
 
-    // A. Broadcast Channel (Instant delivery from student)
+    // A. Broadcast Channel
     const broadcastChannel = supabase
       .channel(`teacher-sessions-${profile.id}`)
       .on("broadcast", { event: "session_request" }, (payload) => {
@@ -255,7 +267,7 @@ export default function TeacherDashboardPage() {
       })
       .subscribe();
 
-    // B. Database Changes Channel (Fallback on sessions table)
+    // B. Postgres Changes Fallback Channel
     const dbChannel = supabase
       .channel(`db-sessions-for-${profile.id}`)
       .on(
@@ -279,9 +291,7 @@ export default function TeacherDashboardPage() {
               sessionId: newSession.id,
               studentId: newSession.student_id,
               studentName:
-                studentProfile?.full_name ||
-                studentProfile?.username ||
-                "A Student",
+                studentProfile?.full_name || studentProfile?.username || "A Student",
               roomUrl: newSession.room_url,
             });
             setIsModalOpen(true);
@@ -302,7 +312,6 @@ export default function TeacherDashboardPage() {
       if (!profile || isUpdatingStatus) return;
 
       const prevState = isOnline;
-      // Optimistic update
       setIsOnline(nextState);
       setIsUpdatingStatus(true);
       setStatusMessage(null);
@@ -320,25 +329,21 @@ export default function TeacherDashboardPage() {
         if (nextState) {
           setStatusMessage({
             type: "success",
-            text: "You are visible to students",
+            text: "You are now ONLINE. Students can see you and request sessions!",
           });
         } else {
           setStatusMessage({
             type: "neutral",
-            text: "You are offline",
+            text: "You are now OFFLINE. New session requests are paused.",
           });
         }
 
         setProfile((prev) => (prev ? { ...prev, is_online: nextState } : null));
-      } catch (err: unknown) {
+      } catch {
         setIsOnline(prevState);
-        const errText =
-          err instanceof Error
-            ? err.message
-            : "Failed to update availability. Reverting status.";
         setStatusMessage({
           type: "error",
-          text: errText,
+          text: "Failed to update availability. Please try again.",
         });
       } finally {
         setIsUpdatingStatus(false);
@@ -347,22 +352,17 @@ export default function TeacherDashboardPage() {
     [profile, isOnline, isUpdatingStatus, supabase]
   );
 
-  // 4. Accept incoming session request
+  // 4. Accept Incoming Session
   const handleAcceptSession = async () => {
     if (!incomingRequest) return;
     setIsResponding(true);
 
     try {
-      const { error } = await supabase
+      await supabase
         .from("sessions")
         .update({ status: "active" })
         .eq("id", incomingRequest.sessionId);
 
-      if (error) {
-        console.error("Failed to activate session:", error);
-      }
-
-      localStorage.setItem("room_url", incomingRequest.roomUrl);
       setIsModalOpen(false);
       router.push(`/session/${incomingRequest.sessionId}`);
     } catch (err) {
@@ -372,7 +372,7 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  // 5. Decline incoming session request
+  // 5. Decline Incoming Session
   const handleDeclineSession = async () => {
     if (!incomingRequest) return;
     setIsResponding(true);
@@ -392,11 +392,10 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  // 6. Skills management
+  // 6. Skills Management
   const handleAddSkill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSkillInput.trim() || !profile) return;
-
     const trimmed = newSkillInput.trim();
     if (skills.some((s) => s.toLowerCase() === trimmed.toLowerCase())) {
       setNewSkillInput("");
@@ -409,10 +408,7 @@ export default function TeacherDashboardPage() {
     setIsSavingSkill(true);
 
     try {
-      await supabase
-        .from("profiles")
-        .update({ skills: updated })
-        .eq("id", profile.id);
+      await supabase.from("profiles").update({ skills: updated }).eq("id", profile.id);
     } catch (err) {
       console.error("Failed to save skill:", err);
     } finally {
@@ -426,520 +422,591 @@ export default function TeacherDashboardPage() {
     setSkills(updated);
 
     try {
-      await supabase
-        .from("profiles")
-        .update({ skills: updated })
-        .eq("id", profile.id);
+      await supabase.from("profiles").update({ skills: updated }).eq("id", profile.id);
     } catch (err) {
       console.error("Failed to remove skill:", err);
     }
   };
 
-  // 7. Logout handler
-  const handleLogout = async () => {
-    if (profile?.id) {
-      await supabase
-        .from("profiles")
-        .update({ is_online: false })
-        .eq("id", profile.id);
-    }
-    await supabase.auth.signOut();
-    router.push("/teacher/login");
-  };
-
-  // Extract initials for avatar fallback
-  const displayName = profile?.full_name || profile?.username || "Teacher";
-  const initials = displayName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
+  // Calculate earnings ($45/hr rate = $0.75/min). Show realistic demonstration or actual
+  const hourlyRate = 45;
+  const estimatedTodaysEarnings = Math.max(0, todaysMinutesTaught * (hourlyRate / 60));
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/60 space-y-3">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F9FAFB] space-y-3">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
         <span className="text-sm font-medium text-slate-500 font-mono">
-          Loading instructor dashboard...
+          Loading command center...
         </span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-900 font-sans">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo & Portal Identity */}
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2.5 group">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-xs group-hover:scale-105 transition-transform">
-                <Zap className="h-5 w-5 fill-current" />
-              </div>
-              <span className="font-semibold text-slate-900 text-lg tracking-tight">
-                Utopians<span className="text-indigo-600">Core</span>
+    <DashboardShell
+      role="teacher"
+      userProfile={{
+        id: profile?.id,
+        fullName: profile?.full_name,
+        username: profile?.username,
+        email: email,
+        role: "teacher",
+        isOnline: isOnline,
+        skills: skills,
+      }}
+      activeItem="dashboard"
+      headerActions={
+        <div className="flex items-center gap-3">
+          {/* Notification Bell with Ping */}
+          <button
+            type="button"
+            onClick={() => {
+              if (incomingRequest) {
+                setIsModalOpen(true);
+              }
+            }}
+            className={`relative p-2 rounded-xl border transition-all cursor-pointer ${
+              incomingRequest
+                ? "border-rose-300 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+            }`}
+            title={
+              incomingRequest
+                ? "Incoming session call waiting!"
+                : "No incoming requests"
+            }
+          >
+            <Bell className="h-4.5 w-4.5" />
+            {incomingRequest && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-[10px] font-bold text-white items-center justify-center">
+                  1
+                </span>
               </span>
-            </Link>
-            <span className="hidden sm:inline-flex items-center rounded-full bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 font-mono">
-              Teacher Portal
+            )}
+          </button>
+
+          {/* Online beacon in header */}
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-white border-slate-200">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                isOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+              }`}
+            />
+            <span className="text-xs font-semibold text-slate-700">
+              {isOnline ? "Online & Ready" : "Offline"}
             </span>
           </div>
-
-          {/* Header Actions: Notification Bell + Profile Info + Logout */}
-          <div className="flex items-center gap-3 sm:gap-4">
-            {/* Notification Bell Icon */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  if (incomingRequest) {
-                    setIsModalOpen(true);
-                  }
-                }}
-                className={`relative p-2.5 rounded-xl border transition-all cursor-pointer ${
-                  incomingRequest
-                    ? "border-rose-300 bg-rose-50/50 text-rose-600 hover:bg-rose-100/60"
-                    : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-                }`}
-                title={
-                  incomingRequest
-                    ? "Incoming session request pending! Click to review."
-                    : "No pending session requests"
-                }
-                aria-label="Notification bell"
-              >
-                <Bell className="h-5 w-5" />
-
-                {/* Pulsating Red Badge when session request arrives */}
-                {incomingRequest && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-rose-600 text-[10px] font-bold text-white items-center justify-center">
-                      1
-                    </span>
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Session History Link */}
-            <Link
-              href="/teacher/history"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
-            >
-              <History className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Session History</span>
-            </Link>
-
-            {/* Logout Button */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all cursor-pointer shadow-2xs"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Log Out</span>
-            </button>
-          </div>
         </div>
-      </header>
-
-      {/* Main Dashboard Layout */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
-        {/* Status Toast Notification */}
+      }
+    >
+      <div className="space-y-8">
+        {/* Status Toast Banner */}
         {statusMessage && (
           <div
-            className={`flex items-center justify-between p-4 rounded-xl border text-sm transition-all duration-300 shadow-2xs ${
+            className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
               statusMessage.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                : statusMessage.type === "neutral"
-                ? "bg-slate-100 border-slate-200 text-slate-700"
-                : "bg-rose-50 border-rose-200 text-rose-800"
+                : statusMessage.type === "error"
+                ? "bg-rose-50 border-rose-200 text-rose-800"
+                : "bg-slate-50 border-slate-200 text-slate-800"
             }`}
           >
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 text-sm font-medium">
               {statusMessage.type === "success" ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-              ) : statusMessage.type === "neutral" ? (
-                <div className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
               ) : (
-                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                <AlertCircle className="h-5 w-5 text-indigo-600 shrink-0" />
               )}
-              <span className="font-medium">{statusMessage.text}</span>
+              <span>{statusMessage.text}</span>
             </div>
             <button
-              type="button"
               onClick={() => setStatusMessage(null)}
-              className="text-slate-400 hover:text-slate-700 text-xs font-semibold ml-4"
+              className="text-slate-400 hover:text-slate-600 p-1"
             >
-              Dismiss
+              <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* Two-Column Responsive Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* ================= LEFT COLUMN ================= */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* 1. Teacher Profile Card */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm transition-all">
-              <div className="flex items-start gap-4">
-                {/* Avatar / Initial */}
-                {profile?.avatar_url ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={profile.avatar_url}
-                    alt={displayName}
-                    className="h-16 w-16 rounded-2xl object-cover border border-slate-200 shadow-xs"
-                  />
-                ) : (
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold text-2xl shadow-xs shrink-0">
-                    {initials || "T"}
-                  </div>
-                )}
+        {/* ================= 1. TOP SECTION: SATISFYING ONLINE/OFFLINE TOGGLE CARD ================= */}
+        <div
+          className={`relative overflow-hidden rounded-2xl border transition-all duration-300 p-6 sm:p-8 ${
+            isOnline
+              ? "bg-gradient-to-r from-emerald-950/90 via-slate-900 to-indigo-950/90 border-emerald-500/40 text-white shadow-md shadow-emerald-500/5"
+              : "bg-white border-slate-200/90 text-slate-900 shadow-sm"
+          }`}
+        >
+          {/* Subtle glow if online */}
+          {isOnline && (
+            <div className="absolute right-0 top-0 -translate-y-12 translate-x-12 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          )}
 
-                {/* Name & Contact Info */}
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-xl font-bold text-slate-900 tracking-tight truncate">
-                      {displayName}
-                    </h2>
-                  </div>
-                  <p className="text-xs text-slate-500 truncate font-mono">
-                    {email}
-                  </p>
-                  <span className="inline-block mt-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md">
-                    Verified Instructor
-                  </span>
-
-                  {/* Sessions Completed & Rating Stats */}
-                  <div className="flex items-center gap-2 pt-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 text-xs font-semibold text-indigo-700 shadow-2xs">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600" />
-                      <span>{completedSessionsCount} Completed</span>
-                    </span>
-
-                    {averageRating ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200/80 px-2.5 py-1 text-xs font-semibold text-amber-800 shadow-2xs">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        <span>{averageRating} ★ ({ratingCount})</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-2xs">
-                        <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
-                        <span>New Instructor</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Skills as Colored Chips */}
-              <div className="mt-6 pt-6 border-t border-slate-100 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 font-mono">
-                    Teaching Skills
-                  </h3>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {skills.length} listed
-                  </span>
-                </div>
-
-                {/* Chip Container */}
-                <div className="flex flex-wrap gap-2">
-                  {skills.length > 0 ? (
-                    skills.map((skill, idx) => {
-                      const colorClass =
-                        CHIP_COLORS[idx % CHIP_COLORS.length];
-                      return (
-                        <span
-                          key={skill}
-                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium shadow-2xs transition-all ${colorClass}`}
-                        >
-                          <span>{skill}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSkill(skill)}
-                            className="opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
-                            aria-label={`Remove skill ${skill}`}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </span>
-                      );
-                    })
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">
-                      No skills added yet. Add topics you teach below.
-                    </p>
-                  )}
-                </div>
-
-                {/* Add Skill Mini-Form */}
-                <form onSubmit={handleAddSkill} className="pt-2 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newSkillInput}
-                    onChange={(e) => setNewSkillInput(e.target.value)}
-                    placeholder="Add skill (e.g. Next.js, Algebra)..."
-                    disabled={isSavingSkill}
-                    className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 bg-slate-50 focus:bg-white focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newSkillInput.trim() || isSavingSkill}
-                    className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 transition-all cursor-pointer shadow-2xs"
-                  >
-                    <Plus className="h-3 w-3" />
-                    <span>Add</span>
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            {/* 2. Large Satisfying "Go Online" Toggle Card */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm transition-all space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 tracking-tight">
-                    Go Online
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Toggle your real-time availability for students
-                  </p>
-                </div>
-
-                {/* State Badge */}
-                {isOnline ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 font-mono shadow-2xs">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>ONLINE</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 font-mono">
-                    <span className="h-2 w-2 rounded-full bg-slate-400" />
-                    <span>OFFLINE</span>
-                  </span>
-                )}
-              </div>
-
-              {/* Large Satisfying Toggle Switch */}
-              <div className="pt-2 flex items-center justify-between p-4 rounded-xl bg-slate-50/70 border border-slate-200/60">
-                <div className="space-y-0.5 pr-4">
-                  <div className="text-sm font-semibold text-slate-900">
-                    {isOnline ? "You are visible to students" : "You are offline"}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    {isOnline
-                      ? "Students on discovery page can request sessions with you immediately."
-                      : "Your profile is hidden from the active online tutor discovery feed."}
-                  </div>
-                </div>
-
-                {/* Large Toggle Switch Button */}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isOnline}
-                  disabled={isUpdatingStatus}
-                  onClick={() => handleToggleOnline(!isOnline)}
-                  className={`relative inline-flex h-9 w-16 shrink-0 cursor-pointer rounded-full p-1 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60 ${
-                    isOnline
-                      ? "bg-emerald-500 shadow-sm shadow-emerald-200"
-                      : "bg-slate-300 hover:bg-slate-400/80"
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`flex h-3 w-3 rounded-full ${
+                    isOnline ? "bg-emerald-400 animate-ping" : "bg-slate-300"
                   }`}
-                  aria-label="Toggle Online Status"
+                />
+                <span
+                  className={`text-xs font-bold uppercase tracking-wider font-mono ${
+                    isOnline ? "text-emerald-400" : "text-slate-400"
+                  }`}
                 >
-                  {/* Thumb with Green Dot when On */}
-                  <span
-                    className={`pointer-events-none flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-md transition-transform duration-300 ease-out ${
-                      isOnline ? "translate-x-7" : "translate-x-0"
-                    }`}
-                  >
-                    {isUpdatingStatus ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-600" />
-                    ) : isOnline ? (
-                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    ) : (
-                      <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                    )}
-                  </span>
-                </button>
+                  Availability Status
+                </span>
               </div>
+
+              <h2
+                className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${
+                  isOnline ? "text-white" : "text-slate-900"
+                }`}
+              >
+                {isOnline ? "You Are Online & Discoverable" : "You Are Currently Offline"}
+              </h2>
+
+              <p
+                className={`text-xs sm:text-sm max-w-xl ${
+                  isOnline ? "text-emerald-100/80" : "text-slate-500"
+                }`}
+              >
+                {isOnline
+                  ? "Students can see your profile on the Discover directory and call you for live 1-on-1 tutoring sessions."
+                  : "Flip your status switch to Go Online when you are available to accept incoming video tutoring sessions."}
+              </p>
             </div>
-          </div>
 
-          {/* ================= RIGHT COLUMN ================= */}
-          <div className="lg:col-span-7">
-            {/* Recent Sessions Card */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm min-h-[460px] flex flex-col justify-between transition-all">
-              <div className="space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-                      Recent Sessions
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Your completed 1-on-1 tutoring calls &amp; history
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                      {completedSessionsCount} Completed
-                    </span>
-                    <Link
-                      href="/teacher/history"
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 underline underline-offset-4"
-                    >
-                      View All &rarr;
-                    </Link>
-                  </div>
-                </div>
+            {/* Prominent Satisfying Toggle Switch Button */}
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isOnline}
+                disabled={isUpdatingStatus}
+                onClick={() => handleToggleOnline(!isOnline)}
+                className={`group relative inline-flex h-12 w-24 items-center rounded-full p-1.5 transition-all duration-300 ease-in-out cursor-pointer shadow-sm focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300 ${
+                  isOnline
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 shadow-emerald-500/30"
+                    : "bg-slate-200 hover:bg-slate-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-9 w-9 transform rounded-full bg-white shadow-md transition-transform duration-300 ease-out flex items-center justify-center ${
+                    isOnline ? "translate-x-12" : "translate-x-0"
+                  }`}
+                >
+                  {isUpdatingStatus ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                  ) : isOnline ? (
+                    <Zap className="h-4 w-4 text-emerald-600 fill-emerald-600" />
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-slate-400" />
+                  )}
+                </span>
+              </button>
 
-                {recentSessions.length > 0 ? (
-                  <div className="space-y-3">
-                    {recentSessions.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5 hover:bg-white hover:border-indigo-100 hover:shadow-xs transition-all flex items-center justify-between gap-3"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-bold text-sm shadow-xs shrink-0">
-                            {item.studentName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-bold text-slate-900 truncate">
-                              {item.studentName}
-                            </h4>
-                            <p className="text-xs text-slate-400">
-                              {item.dateText} &bull; {item.durationText}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          {item.status === "completed" ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                              <CheckCircle2 className="h-3 w-3" />
-                              <span>Completed</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                              <span>{item.status}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="pt-2 text-center">
-                      <Link href="/teacher/history">
-                        <button
-                          type="button"
-                          className="w-full py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-indigo-600 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer shadow-2xs"
-                        >
-                          View Full Teaching History ({completedSessionsCount}) &rarr;
-                        </button>
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  /* Empty State Illustration & Content */
-                  <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-50/80 border border-indigo-100/80 text-indigo-500 shadow-xs">
-                      <CalendarX2 className="h-10 w-10 stroke-[1.5]" />
-                    </div>
-
-                    <div className="space-y-1.5 max-w-sm">
-                      <h3 className="text-base font-bold text-slate-900">
-                        No sessions yet.
-                      </h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        When students request and complete live 1-on-1 tutoring sessions
-                        with you, their room links, duration, and records will appear
-                        here.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom Guidance Card */}
-              <div className="mt-8 rounded-xl border border-slate-100 bg-slate-50/60 p-4 text-xs text-slate-600 flex items-start gap-3">
-                <div className="h-2 w-2 rounded-full bg-indigo-500 mt-1 shrink-0" />
-                <p className="leading-relaxed">
-                  <strong className="text-slate-900">Pro tip:</strong> Keep your
-                  toggle set to <strong>Go Online</strong>. Students searching for
-                  your skills on the discovery feed will see you immediately and can
-                  send live video requests!
-                </p>
+              <div className="flex flex-col">
+                <span
+                  className={`text-sm font-bold ${
+                    isOnline ? "text-white" : "text-slate-800"
+                  }`}
+                >
+                  {isOnline ? "Go Offline" : "Go Online"}
+                </span>
+                <span
+                  className={`text-xs ${
+                    isOnline ? "text-emerald-300" : "text-slate-400"
+                  }`}
+                >
+                  {isOnline ? "Accepting calls" : "Paused"}
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </main>
 
-      {/* ================= INCOMING REQUEST MODAL ================= */}
-      {incomingRequest && isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
-            {/* Pulsing Call Animation */}
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 shadow-sm relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-2xl bg-emerald-400 opacity-30" />
-              <PhoneCall className="h-8 w-8 relative z-10" />
-            </div>
-
-            {/* Request Details */}
-            <div className="space-y-2">
-              <span className="inline-block text-[11px] font-mono font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
-                Incoming Live Request
+        {/* ================= 2. STATS ROW: THREE CARDS ================= */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          {/* Card 1: Sessions Completed */}
+          <Card className="p-6 bg-white border-slate-200/90 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                Sessions Completed
               </span>
-              <h3 className="text-xl font-bold text-slate-900">
-                {incomingRequest.studentName}
-              </h3>
-              <p className="text-sm text-slate-600">
-                is requesting a live 1-on-1 tutoring session!
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-3xl font-extrabold text-slate-900">
+                {completedSessionsCount}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Total completed 1-on-1 sessions
+              </p>
+            </div>
+          </Card>
+
+          {/* Card 2: Average Rating */}
+          <Card className="p-6 bg-white border-slate-200/90 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                Average Rating
+              </span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-500">
+                <Star className="h-5 w-5 fill-amber-400" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-extrabold text-slate-900">
+                  {averageRating || "5.0"}
+                </span>
+                <span className="text-xs font-bold text-amber-500">★ ★ ★ ★ ★</span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {ratingCount > 0 ? `Based on ${ratingCount} reviews` : "Verified Top Mentor"}
+              </p>
+            </div>
+          </Card>
+
+          {/* Card 3: Total Minutes Taught */}
+          <Card className="p-6 bg-white border-slate-200/90 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">
+                Total Minutes Taught
+              </span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Clock className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="text-3xl font-extrabold text-slate-900">
+                {totalMinutesTaught > 60
+                  ? `${Math.floor(totalMinutesTaught / 60)}h ${totalMinutesTaught % 60}m`
+                  : `${totalMinutesTaught} mins`}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Live instructional time delivered
+              </p>
+            </div>
+          </Card>
+        </div>
+
+        {/* ================= 3. TODAY'S EARNINGS QUICK VIEW ================= */}
+        <Card className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-slate-800 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider font-mono">
+                <DollarSign className="h-4 w-4 text-emerald-400" />
+                <span>Today&apos;s Earnings Overview</span>
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl sm:text-4xl font-extrabold text-white">
+                  ${estimatedTodaysEarnings > 0 ? estimatedTodaysEarnings.toFixed(2) : "0.00"}
+                </span>
+                <Badge variant="emerald" className="text-xs font-mono font-semibold">
+                  Rate: ${hourlyRate}.00/hr
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-400">
+                {todaysMinutesTaught > 0
+                  ? `${todaysMinutesTaught} minutes taught today. Next payout on Friday via Stripe Direct.`
+                  : "No teaching minutes logged yet today. Turn on your toggle to start earning!"}
               </p>
             </div>
 
-            {/* Room Identifier */}
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-500 font-mono truncate">
-              Session ID: {incomingRequest.sessionId}
+            <div className="flex items-center gap-3">
+              <Link href="/teacher/history">
+                <Button variant="glass" size="sm" className="gap-1.5 text-white border-white/20 hover:bg-white/20">
+                  <History className="h-4 w-4" />
+                  <span>Session History</span>
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </Card>
+
+        {/* ================= 4. RECENT SESSION REQUESTS & SESSIONS ================= */}
+        <div id="sessions" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Video className="h-5 w-5 text-indigo-600" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Session Activity &amp; Requests
+              </h2>
+            </div>
+            <Link
+              href="/teacher/history"
+              className="text-xs sm:text-sm font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 hover:underline"
+            >
+              <span>View All History</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {/* Pending incoming request callout banner if active */}
+          {incomingRequest && (
+            <div className="p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in duration-200">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-rose-600 text-white flex items-center justify-center animate-bounce">
+                  <PhoneCall className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="rose" className="text-[10px] uppercase">
+                      Incoming Call
+                    </Badge>
+                    <span className="text-xs text-rose-700 font-mono">Live Request</span>
+                  </div>
+                  <h4 className="text-base font-bold text-slate-900 mt-0.5">
+                    {incomingRequest.studentName} is requesting a tutoring session!
+                  </h4>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDeclineSession}
+                  disabled={isResponding}
+                  className="text-rose-600 border-rose-200 hover:bg-rose-100"
+                >
+                  Decline
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleAcceptSession}
+                  disabled={isResponding}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm"
+                >
+                  <Video className="h-4 w-4" />
+                  <span>Accept &amp; Join Room</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Recent sessions list */}
+          {recentSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentSessions.map((session) => {
+                const isCompleted = session.status === "completed";
+                const isPending = session.status === "pending" || session.status === "active";
+
+                return (
+                  <Card
+                    key={session.id}
+                    className="p-5 border-slate-200/90 hover:border-slate-300 transition-all bg-white flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge
+                          variant={isCompleted ? "emerald" : isPending ? "indigo" : "rose"}
+                          className="capitalize text-xs font-semibold"
+                        >
+                          {session.status}
+                        </Badge>
+                        <span className="text-xs text-slate-400 font-mono">
+                          {session.dateText}
+                        </span>
+                      </div>
+
+                      <div className="mt-3">
+                        <h4 className="font-bold text-slate-900 text-base">
+                          Student: {session.studentName}
+                        </h4>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3.5 w-3.5 text-slate-400" />
+                            <span>{session.durationText}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                      {isPending ? (
+                        <Link href={`/session/${session.id}`} className="w-full">
+                          <Button variant="primary" size="sm" className="w-full gap-2 font-semibold">
+                            <Video className="h-4 w-4" />
+                            <span>Re-join Active Room</span>
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Link href="/teacher/history" className="w-full">
+                          <Button variant="outline" size="sm" className="w-full text-slate-600 hover:text-indigo-600">
+                            <span>View Session Log</span>
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            /* Friendly Empty State */
+            <Card className="p-8 sm:p-12 text-center border-dashed border-slate-200 bg-white">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 mb-3.5">
+                <CalendarX2 className="h-7 w-7 text-indigo-500" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                No Session Requests Yet
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mt-1">
+                Make sure your availability toggle is set to &quot;Online&quot; at the top of the command center. Incoming student calls will trigger an immediate alert here.
+              </p>
+              {!isOnline && (
+                <div className="mt-4">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleToggleOnline(true)}
+                    className="gap-2"
+                  >
+                    <Zap className="h-4 w-4" />
+                    <span>Go Online Now</span>
+                  </Button>
+                </div>
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* ================= 5. SKILLS & SPECIALTIES MANAGER ================= */}
+        <Card className="p-6 bg-white border-slate-200/90">
+          <CardHeader className="p-0 pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-indigo-600" />
+                  <span>Teaching Specialties &amp; Subjects</span>
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500 mt-1">
+                  Students discover you by searching these subject tags on the platform.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0 space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {skills.length > 0 ? (
+                skills.map((skill, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold"
+                  >
+                    <span>{skill}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSkill(skill)}
+                      className="text-indigo-400 hover:text-rose-600 rounded-md p-0.5"
+                      title="Remove specialty"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-slate-400 italic">
+                  No specialties listed. Add subjects you can teach below!
+                </span>
+              )}
             </div>
 
-            {/* Action Buttons: Accept vs Decline */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            <form onSubmit={handleAddSkill} className="flex gap-2 max-w-md">
+              <Input
+                type="text"
+                value={newSkillInput}
+                onChange={(e) => setNewSkillInput(e.target.value)}
+                placeholder="e.g. Python, Calculus, Organic Chemistry..."
+                className="h-10 text-xs"
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                isLoading={isSavingSkill}
+                disabled={!newSkillInput.trim()}
+                className="shrink-0 font-semibold"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Subject
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ================= INCOMING SESSION MODAL ================= */}
+      {isModalOpen && incomingRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="relative w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center animate-bounce">
+                  <PhoneCall className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Incoming Session Request
+                  </h3>
+                  <p className="text-xs text-slate-500">Live student connection</p>
+                </div>
+              </div>
               <button
                 type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="text-center py-4 space-y-2">
+              <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-bold text-2xl flex items-center justify-center mx-auto shadow-md">
+                {incomingRequest.studentName[0]?.toUpperCase() || "S"}
+              </div>
+              <h4 className="text-lg font-bold text-slate-900">
+                {incomingRequest.studentName}
+              </h4>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                Is ready to start a 1-on-1 video tutoring session with you right now.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                variant="outline"
+                size="md"
                 onClick={handleDeclineSession}
                 disabled={isResponding}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
+                className="flex-1 text-rose-600 border-rose-200 hover:bg-rose-50"
               >
                 Decline
-              </button>
-
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
                 onClick={handleAcceptSession}
-                disabled={isResponding}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-200 hover:bg-emerald-500 hover:shadow-md transition-all disabled:opacity-50 cursor-pointer"
+                isLoading={isResponding}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-semibold shadow-sm"
               >
-                {isResponding ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-white" />
-                ) : (
-                  <>
-                    <Video className="h-4 w-4" />
-                    <span>Accept</span>
-                  </>
-                )}
-              </button>
+                <Video className="h-4 w-4" />
+                <span>Accept &amp; Join</span>
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </DashboardShell>
   );
 }

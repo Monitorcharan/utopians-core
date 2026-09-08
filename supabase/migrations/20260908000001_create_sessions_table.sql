@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Migration: Create sessions table for Daily.co video tutoring rooms
+-- Migration: Create sessions table for Jitsi Meet room URL video tutoring rooms
 -- Description: Tracks live session lifecycle between students and teachers
 -- ==============================================================================
 

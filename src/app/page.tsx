@@ -29,17 +29,27 @@ export default function HomePage() {
             </span>
           </Link>
 
+          {/* Nav Links */}
+          <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600">
+            <Link href="/for-students" className="hover:text-indigo-600 transition-colors">
+              For Students
+            </Link>
+            <Link href="/for-teachers" className="hover:text-indigo-600 transition-colors">
+              For Teachers
+            </Link>
+          </nav>
+
           {/* Nav Action Buttons (Outline Style) */}
           <div className="flex items-center gap-3">
             <Link
               href="/student/login"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
             >
               Student Login
             </Link>
             <Link
               href="/teacher/login"
-              className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
             >
               Teacher Login
             </Link>
@@ -310,6 +320,18 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-6">
+            <Link
+              href="/for-students"
+              className="hover:text-slate-900 transition-colors"
+            >
+              For Students
+            </Link>
+            <Link
+              href="/for-teachers"
+              className="hover:text-slate-900 transition-colors"
+            >
+              For Teachers
+            </Link>
             <Link
               href="/student/login"
               className="hover:text-slate-900 transition-colors"

@@ -13,6 +13,8 @@ export function AppLayoutShell({ children }: AppLayoutShellProps) {
   const pathname = usePathname();
   const isCleanPage =
     pathname === "/" ||
+    pathname === "/for-students" ||
+    pathname === "/for-teachers" ||
     pathname.startsWith("/student/") ||
     pathname.startsWith("/teacher/") ||
     pathname.startsWith("/session/");

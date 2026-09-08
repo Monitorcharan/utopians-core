@@ -13,7 +13,9 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
     | "emerald"
     | "purple"
     | "amber"
-    | "slate";
+    | "slate"
+    | "indigo"
+    | "rose";
   size?: "sm" | "md";
   pulse?: boolean;
   onRemove?: () => void;
@@ -32,9 +34,11 @@ export const Badge: React.FC<BadgeProps> = ({
   // Primary (indigo-600), Secondary (gray-100), Accent (emerald-500), Error (red-500)
   const variantStyles: Record<string, string> = {
     primary: "bg-indigo-50 text-indigo-700 border-indigo-200/80",
-    secondary: "bg-gray-100 text-gray-700 border-gray-200",
+    indigo: "bg-indigo-50 text-indigo-700 border-indigo-200/80",
+    secondary: "bg-slate-100 text-slate-700 border-slate-200",
     accent: "bg-emerald-50 text-emerald-700 border-emerald-200/80",
     error: "bg-red-50 text-red-700 border-red-200/80",
+    rose: "bg-rose-50 text-rose-700 border-rose-200/80",
     outline: "border border-slate-300 text-slate-700 bg-transparent",
 
     // Backward compatibility variants
@@ -53,7 +57,7 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <div
       className={cn(
-        // 0.5rem (rounded-lg) consistent border radius
+        // 0.75rem (rounded-xl) consistent border radius
         "inline-flex items-center rounded-lg border font-medium tracking-normal select-none transition-colors shadow-2xs",
         variantStyles[variant] || variantStyles.primary,
         sizeStyles[size],

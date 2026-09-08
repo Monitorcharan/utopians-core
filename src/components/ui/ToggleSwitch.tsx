@@ -75,7 +75,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
           "relative inline-flex flex-shrink-0 cursor-pointer rounded-full p-0.5 transition-all duration-300 ease-in-out",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
           dimensions.track,
-          checked ? activeColorClasses : "bg-slate-700/80 hover:bg-slate-600/80",
+          checked ? activeColorClasses : "bg-slate-300 hover:bg-slate-400",
           (disabled || isLoading) && "opacity-50 cursor-not-allowed"
         )}
       >
@@ -97,15 +97,15 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
           {label && (
             <span
               className={cn(
-                "text-sm font-medium transition-colors",
-                checked ? "text-white" : "text-slate-300"
+                "text-sm font-semibold transition-colors",
+                checked ? "text-slate-900" : "text-slate-600"
               )}
             >
               {label}
             </span>
           )}
           {description && (
-            <span className="text-xs text-slate-400 leading-normal">{description}</span>
+            <span className="text-xs text-slate-500 leading-normal">{description}</span>
           )}
         </label>
       )}

@@ -80,7 +80,7 @@ export default function StudentHistoryPage() {
           new Set(sessionRows.map((s) => s.teacher_id).filter(Boolean))
         );
 
-        let teacherMap: Record<string, Profile> = {};
+        const teacherMap: Record<string, Profile> = {};
         if (teacherIds.length > 0) {
           const { data: teacherProfiles } = await supabase
             .from("profiles")
@@ -95,7 +95,7 @@ export default function StudentHistoryPage() {
         }
 
         // 3. Fetch reviews if available
-        let reviewMap: Record<
+        const reviewMap: Record<
           string,
           { student_rating: number | null; student_comment: string | null }
         > = {};
@@ -500,7 +500,7 @@ export default function StudentHistoryPage() {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-4"
                   >
-                    <span>Open in Daily.co Archive</span>
+                    <span>Open Session Room</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>

@@ -93,13 +93,10 @@ export default function SessionRoomPage() {
       if (!sessionId) return;
 
       try {
-        // Cache check
-        const cachedUrl = localStorage.getItem("room_url");
-        if (cachedUrl) {
-          setRoomUrl(cachedUrl);
-        }
+        // 1. Fetch current user and profile (full_name)
+        let fullName = "User";
+        let detectedRole: "student" | "teacher" = "student";
 
-        // Current user
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -112,12 +109,27 @@ export default function SessionRoomPage() {
             .single();
 
           if (profile) {
-            setUserRole((profile.role as "student" | "teacher") || "student");
-            setUserName(profile.full_name || profile.username || "User");
+            detectedRole = (profile.role as "student" | "teacher") || "student";
+            setUserRole(detectedRole);
+            fullName =
+              profile.full_name ||
+              profile.username ||
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "User";
+            setUserName(fullName);
+          } else {
+            fullName =
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "User";
+            setUserName(fullName);
           }
         }
 
-        // Fetch session record
+        // 2. Fetch session record from Supabase
         const { data: sessionData, error } = await supabase
           .from("sessions")
           .select("*")
@@ -126,19 +138,29 @@ export default function SessionRoomPage() {
 
         if (error) {
           console.error("Error loading session:", error);
-        } else if (sessionData) {
+        }
+
+        // 3. Construct Jitsi room URL with user's full_name and prejoin/name bypass
+        const baseRoomUrl =
+          sessionData?.room_url ||
+          `https://meet.jit.si/utopians-core-${sessionId}`;
+        const cleanBase = baseRoomUrl.split("?")[0].split("#")[0];
+        const encodedName = encodeURIComponent(fullName);
+        const jsonEncodedName = encodeURIComponent(JSON.stringify(fullName));
+
+        // Auto-fills displayName and bypasses prejoin lobby and login prompts
+        const jitsiUrl = `${cleanBase}?userInfo.displayName=${encodedName}#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false&config.requireDisplayName=false&userInfo.displayName=${jsonEncodedName}`;
+
+        setRoomUrl(jitsiUrl);
+        localStorage.setItem("room_url", jitsiUrl);
+
+        if (sessionData) {
           setSession(sessionData as Session);
-          if (sessionData.room_url) {
-            setRoomUrl(sessionData.room_url);
-            localStorage.setItem("room_url", sessionData.room_url);
-          }
-          // Topic fallback
           setSessionTopic("Live 1-on-1 Micro-Tutoring");
 
           // Fetch peer profile for rating & reviews
-          const currentUserRole = userRole;
           const peerId =
-            currentUserRole === "student"
+            detectedRole === "student"
               ? sessionData.teacher_id
               : sessionData.student_id;
 
@@ -153,7 +175,7 @@ export default function SessionRoomPage() {
               setPeerName(
                 peerData.full_name ||
                   peerData.username ||
-                  (currentUserRole === "student" ? "Teacher" : "Student")
+                  (detectedRole === "student" ? "Teacher" : "Student")
               );
               setPeerAvatarUrl(peerData.avatar_url || null);
             }
@@ -399,19 +421,20 @@ export default function SessionRoomPage() {
       <div className="flex-1 flex w-full overflow-hidden relative">
         {/* VIDEO AREA (75% on Desktop, 100% on Mobile) */}
         <div className="w-full lg:w-3/4 h-full bg-black flex flex-col relative overflow-hidden">
-          {/* Centered Daily.co Video Room */}
+          {/* Centered Jitsi Meet Video Room */}
           <div className="flex-1 flex items-center justify-center relative w-full h-full bg-black">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center gap-3 text-slate-400 font-mono text-xs">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                <span>Connecting to Daily.co video room...</span>
+                <span>Connecting to Jitsi Meet video room...</span>
               </div>
             ) : roomUrl ? (
               <iframe
                 src={roomUrl}
-                allow="camera; microphone; fullscreen; display-capture; autoplay"
+                allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+                allowFullScreen
                 className="w-full h-full border-0 bg-black"
-                title="Daily.co Live Video Call"
+                title="Jitsi Meet Live Video Call"
               />
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 text-slate-500 text-xs font-mono">

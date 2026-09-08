@@ -1,22 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 :root {
   /* Global Design System Palette */
   --color-primary: #4f46e5;       /* indigo-600 */
   --color-primary-hover: #4338ca; /* indigo-700 */
-  --color-secondary: #f3f4f6;     /* gray-100 */
-  --color-secondary-hover: #e5e7eb; /* gray-200 */
+  --color-secondary: #f1f5f9;     /* slate-100 */
+  --color-secondary-hover: #e2e8f0; /* slate-200 */
   --color-accent: #10b981;        /* emerald-500 */
   --color-accent-hover: #059669;  /* emerald-600 */
   --color-error: #ef4444;         /* red-500 */
   --color-error-hover: #dc2626;   /* red-600 */
 
-  /* Border radius standard (0.5rem) */
-  --radius: 0.5rem;
+  /* Border radius standard: 0.75rem (rounded-xl) */
+  --radius: 0.75rem;
 
   /* Baseline theme tokens */
-  --background: #ffffff;
+  --background: #f9fafb;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -34,17 +33,26 @@
 
 html {
   scroll-behavior: smooth;
+  font-size: 16px;
 }
 
 body {
   font-family: 'Inter', var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
   overflow-x: hidden;
   min-height: 100vh;
 }
 
-/* Consistent design system border-radius utility (0.5rem) */
+/* Headings bold with tracking-tight */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+/* Consistent design system border-radius utility (rounded-xl) */
 .rounded-default {
-  border-radius: var(--radius, 0.5rem);
+  border-radius: var(--radius, 0.75rem);
 }
 
 /* Custom subtle scrollbar */

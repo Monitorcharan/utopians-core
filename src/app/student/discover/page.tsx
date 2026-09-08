@@ -234,7 +234,7 @@ export default function StudentDiscoverPage() {
         user.email?.split("@")[0] ||
         "Student";
 
-      // Create Daily.co private room via API route
+      // Create Jitsi Meet private room via API route
       const response = await fetch("/api/create-room", {
         method: "POST",
         headers: {
@@ -249,7 +249,7 @@ export default function StudentDiscoverPage() {
       const data = await response.json();
 
       if (!response.ok || !data.roomUrl || !data.sessionId) {
-        throw new Error(data.error || "Failed to create Daily.co video room.");
+        throw new Error(data.error || "Failed to create video room.");
       }
 
       // Cache room URL

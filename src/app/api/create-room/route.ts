@@ -1,31 +1,21 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 interface CreateRoomRequestBody {
   teacherId?: string;
   studentId?: string;
-}
-
-interface DailyRoomResponse {
-  id?: string;
-  name: string;
-  api_created?: boolean;
-  privacy: string;
-  url: string;
-  created_at?: string;
-  config?: Record<string, unknown>;
-  error?: string;
-  info?: string;
+  sessionId?: string;
 }
 
 /**
  * POST /api/create-room
- * Creates a private video tutoring room via the Daily.co REST API
- * and registers a new pending session record in Supabase.
+ * Creates a Jitsi Meet private room and registers the pending session in Supabase.
+ * Accepts: { teacherId, studentId, sessionId? }
+ * Returns: { sessionId, roomUrl }
  */
 export async function POST(request: Request) {
   try {
-    // 1. Parse and validate JSON request body
+    // 1. Parse JSON payload
     let body: CreateRoomRequestBody;
     try {
       body = await request.json();
@@ -36,7 +26,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { teacherId, studentId } = body;
+    const { teacherId, studentId, sessionId: providedSessionId } = body;
 
     if (!teacherId || !studentId) {
       return NextResponse.json(
@@ -47,78 +37,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Retrieve and validate Daily.co API Key
-    const dailyApiKey = process.env.DAILY_API_KEY;
+    // 2. Validate provided sessionId as UUID or generate a fresh one
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const sessionId =
+      providedSessionId && uuidRegex.test(providedSessionId)
+        ? providedSessionId
+        : crypto.randomUUID();
 
-    if (!dailyApiKey || dailyApiKey === "placeholder-daily-api-key") {
-      return NextResponse.json(
-        {
-          error:
-            "Daily.co API Key is not configured. Please set DAILY_API_KEY in your environment variables.",
-        },
-        { status: 500 }
-      );
-    }
+    // 3. Construct Jitsi Meet room URL
+    const roomUrl = `https://meet.jit.si/utopians-core-${sessionId}`;
 
-    // 3. Call Daily.co REST API to create video room
-    // Room expires in 2 hours (7200 seconds)
-    const roomExp = Math.floor(Date.now() / 1000) + 7200;
-
-    const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${dailyApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        privacy: "public",
-        properties: {
-          exp: roomExp,
-          enable_screenshare: true,
-          enable_chat: true,
-          eject_at_room_exp: true,
-        },
-      }),
-    });
-
-    if (!dailyResponse.ok) {
-      const errorText = await dailyResponse.text();
-      console.error("Daily.co room creation failed:", dailyResponse.status, errorText);
-
-      let parsedMessage = errorText;
-      try {
-        const parsedError = JSON.parse(errorText);
-        parsedMessage = parsedError.info || parsedError.error || errorText;
-      } catch {
-        // use raw errorText
-      }
-
-      return NextResponse.json(
-        {
-          error: `Failed to create video room via Daily.co API: ${parsedMessage}`,
-        },
-        { status: 500 }
-      );
-    }
-
-    const dailyData = (await dailyResponse.json()) as DailyRoomResponse;
-
-    if (!dailyData?.url) {
-      return NextResponse.json(
-        { error: "Daily.co API responded without a valid room URL" },
-        { status: 500 }
-      );
-    }
-
-    // 4. Store session details in Supabase sessions table
-    const supabase = await createClient();
+    // 4. Create session row in Supabase
+    const supabase = createAdminClient();
 
     const { data: sessionData, error: dbError } = await supabase
       .from("sessions")
-      .insert({
+      .upsert({
+        id: sessionId,
         student_id: studentId,
         teacher_id: teacherId,
-        room_url: dailyData.url,
+        room_url: roomUrl,
         status: "pending",
         started_at: new Date().toISOString(),
       })
@@ -129,17 +68,17 @@ export async function POST(request: Request) {
       console.error("Database error recording session in Supabase:", dbError);
       return NextResponse.json(
         {
-          error: `Room created at ${dailyData.url}, but failed to register session in database: ${dbError?.message}`,
+          error: `Failed to register session in database: ${dbError?.message || "Unknown error"}`,
         },
         { status: 500 }
       );
     }
 
-    // 5. Return room URL and session ID in response
+    // 5. Return sessionId and roomUrl
     return NextResponse.json(
       {
-        roomUrl: dailyData.url,
         sessionId: sessionData.id,
+        roomUrl: sessionData.room_url,
       },
       { status: 200 }
     );
