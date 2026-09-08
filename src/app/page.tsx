@@ -20,6 +20,7 @@ export default function HomePage() {
   const { role, isAuthenticated, signOut } = useAuthContext();
   const currentYear = new Date().getFullYear();
 
+  // Used only for the header dashboard nav link
   const userDashboard =
     role === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
 
@@ -162,7 +163,13 @@ export default function HomePage() {
 
             <div className="pt-8 mt-6 border-t border-slate-100 space-y-3">
               <Link
-                href={isAuthenticated ? userDashboard : "/student/signup"}
+                href={
+                  !isAuthenticated
+                    ? "/student/signup"
+                    : role === "student"
+                    ? "/student/dashboard"
+                    : "/student/signup" // Teacher visiting — signup page will show role conflict banner
+                }
                 className="block w-full"
               >
                 <button
@@ -170,11 +177,11 @@ export default function HomePage() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-sm shadow-indigo-200 hover:bg-indigo-500 hover:shadow-md transition-all cursor-pointer"
                 >
                   <span>
-                    {isAuthenticated
-                      ? role === "student"
-                        ? "Go to Student Dashboard"
-                        : "Go to Dashboard"
-                      : "I'm a Student"}
+                    {!isAuthenticated
+                      ? "I'm a Student"
+                      : role === "student"
+                      ? "Go to Student Dashboard"
+                      : "Switch to Student Account"}
                   </span>
                   <ArrowRight className="h-4 w-4" />
                 </button>
@@ -232,7 +239,13 @@ export default function HomePage() {
 
             <div className="pt-8 mt-6 border-t border-slate-100 space-y-3">
               <Link
-                href={isAuthenticated ? userDashboard : "/teacher/signup"}
+                href={
+                  !isAuthenticated
+                    ? "/teacher/signup"
+                    : role === "teacher"
+                    ? "/teacher/dashboard"
+                    : "/teacher/signup" // Student visiting — signup page will show role conflict banner
+                }
                 className="block w-full"
               >
                 <button
@@ -240,11 +253,11 @@ export default function HomePage() {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-800 shadow-xs hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
                 >
                   <span>
-                    {isAuthenticated
-                      ? role === "teacher"
-                        ? "Go to Teacher Dashboard"
-                        : "Go to Dashboard"
-                      : "Start Teaching"}
+                    {!isAuthenticated
+                      ? "Start Teaching"
+                      : role === "teacher"
+                      ? "Go to Teacher Dashboard"
+                      : "Switch to Teacher Account"}
                   </span>
                   <ArrowRight className="h-4 w-4 text-slate-400" />
                 </button>

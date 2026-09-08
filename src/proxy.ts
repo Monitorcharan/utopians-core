@@ -107,16 +107,17 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // If visiting the OTHER role's login page, redirect to their dashboard
+  // If visiting the OTHER role's login page, redirect to the OTHER role's signup
+  // (which shows the role-conflict banner explaining what happened)
   if (pathname === "/teacher/login" && userRole === "student") {
     const url = request.nextUrl.clone();
-    url.pathname = "/student/dashboard";
+    url.pathname = "/teacher/signup";
     return NextResponse.redirect(url);
   }
 
   if (pathname === "/student/login" && userRole === "teacher") {
     const url = request.nextUrl.clone();
-    url.pathname = "/teacher/dashboard";
+    url.pathname = "/student/signup";
     return NextResponse.redirect(url);
   }
 
