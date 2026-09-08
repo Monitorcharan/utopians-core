@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Zap, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Zap, Eye, EyeOff, Loader2, AlertCircle, CheckCircle2, ShieldAlert } from "lucide-react";
 
 export default function StudentSignupPage() {
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function StudentSignupPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [roleConflict, setRoleConflict] = useState<string | null>(null);
 
   const validate = () => {
     let isValid = true;
@@ -64,8 +65,31 @@ export default function StudentSignupPage() {
     if (!validate()) return;
 
     setIsLoading(true);
+    setRoleConflict(null);
 
     try {
+      // 0. Check if email is already registered with a different role
+      const checkRes = await fetch("/api/check-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData.exists && checkData.role !== "student") {
+          setRoleConflict(checkData.role);
+          setIsLoading(false);
+          return;
+        }
+        if (checkData.exists && checkData.role === "student") {
+          // Already registered as student — prompt them to login instead
+          setGeneralError("This email is already registered. Please sign in instead.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
       // 1. Sign up via Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
@@ -80,6 +104,30 @@ export default function StudentSignupPage() {
       });
 
       if (error) {
+        // Handle "User already registered" from Supabase Auth
+        if (
+          error.message.toLowerCase().includes("already registered") ||
+          error.message.toLowerCase().includes("already been registered")
+        ) {
+          // The user exists in auth — check their profile role
+          const recheckRes = await fetch("/api/check-role", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim() }),
+          });
+          if (recheckRes.ok) {
+            const recheckData = await recheckRes.json();
+            if (recheckData.exists && recheckData.role !== "student") {
+              setRoleConflict(recheckData.role);
+              setIsLoading(false);
+              return;
+            }
+          }
+          setGeneralError("This email is already registered. Please sign in instead.");
+          setIsLoading(false);
+          return;
+        }
+
         if (error.message.toLowerCase().includes("email")) {
           setEmailError(error.message);
         } else if (error.message.toLowerCase().includes("password")) {
@@ -241,7 +289,28 @@ export default function StudentSignupPage() {
           </div>
         )}
 
-        {/* Form */}
+        {/* Role Conflict Banner */}
+        {roleConflict && (
+          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm">
+            <div className="flex items-start gap-2.5">
+              <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+              <div className="space-y-2">
+                <p className="font-semibold text-amber-800">
+                  This email is already registered as a {roleConflict}.
+                </p>
+                <p className="text-xs text-amber-700">
+                  Each email can only be used for one role. Please log in with your existing account instead.
+                </p>
+                <Link
+                  href={`/${roleConflict}/login`}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 transition-colors"
+                >
+                  Sign in as {roleConflict.charAt(0).toUpperCase() + roleConflict.slice(1)} →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSignup} className="space-y-4">
           {/* Full Name Field */}
           <div>

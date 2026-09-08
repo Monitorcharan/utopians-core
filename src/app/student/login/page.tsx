@@ -74,10 +74,26 @@ function LoginForm() {
       }
 
       if (data?.user) {
+        // Fetch profile to verify role
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+
         await supabase
           .from("profiles")
           .update({ is_online: true })
           .eq("id", data.user.id);
+
+        if (profile?.role === "teacher") {
+          // Wrong login page — redirect to teacher dashboard
+          setGeneralError("This account is registered as a teacher. Redirecting...");
+          setTimeout(() => {
+            router.push("/teacher/dashboard");
+          }, 1500);
+          return;
+        }
 
         router.push("/student/dashboard");
       }
