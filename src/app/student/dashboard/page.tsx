@@ -389,7 +389,7 @@ export default function StudentDashboardPage() {
         return;
       }
 
-      // 1. Create Jitsi Meet room and session record via API
+      // 1. Create WebRTC session record via API
       const res = await fetch("/api/create-room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -400,12 +400,9 @@ export default function StudentDashboardPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || !data.roomUrl || !data.sessionId) {
+      if (!res.ok || !data.sessionId) {
         throw new Error(data.error || "Failed to create video room");
       }
-
-      // Cache room URL
-      localStorage.setItem("room_url", data.roomUrl);
 
       // Broadcast event to teacher's personal channel
       const studentName = profile.full_name || profile.username || "Student";
@@ -418,7 +415,6 @@ export default function StudentDashboardPage() {
           student_name: studentName,
           student_id: profile.id,
           session_id: data.sessionId,
-          room_url: data.roomUrl,
         },
       });
 

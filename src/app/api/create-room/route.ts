@@ -9,9 +9,9 @@ interface CreateRoomRequestBody {
 
 /**
  * POST /api/create-room
- * Creates a Jitsi Meet private room and registers the pending session in Supabase.
+ * Creates a native WebRTC session row in Supabase with status = 'pending', started_at = now().
  * Accepts: { teacherId, studentId, sessionId? }
- * Returns: { sessionId, roomUrl }
+ * Returns: { sessionId }
  */
 export async function POST(request: Request) {
   try {
@@ -45,10 +45,7 @@ export async function POST(request: Request) {
         ? providedSessionId
         : crypto.randomUUID();
 
-    // 3. Construct Jitsi Meet room URL
-    const roomUrl = `https://meet.jit.si/utopians-core-${sessionId}`;
-
-    // 4. Create session row in Supabase
+    // 3. Create session row in Supabase
     const supabase = createAdminClient();
 
     const { data: sessionData, error: dbError } = await supabase
@@ -57,11 +54,11 @@ export async function POST(request: Request) {
         id: sessionId,
         student_id: studentId,
         teacher_id: teacherId,
-        room_url: roomUrl,
+        room_url: `/session/${sessionId}`, // Satisfies DB NOT NULL constraint while pointing to native WebRTC route
         status: "pending",
         started_at: new Date().toISOString(),
       })
-      .select("id, room_url")
+      .select("id")
       .single();
 
     if (dbError || !sessionData) {
@@ -74,11 +71,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Return sessionId and roomUrl
+    // 4. Return { sessionId } (no room_url needed)
     return NextResponse.json(
       {
         sessionId: sessionData.id,
-        roomUrl: sessionData.room_url,
       },
       { status: 200 }
     );

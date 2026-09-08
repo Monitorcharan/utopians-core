@@ -33,7 +33,7 @@ interface IncomingSessionRequest {
   sessionId: string;
   studentId: string;
   studentName: string;
-  roomUrl: string;
+  roomUrl?: string;
 }
 
 export default function TeacherDashboardPage() {
@@ -255,12 +255,12 @@ export default function TeacherDashboardPage() {
       .channel(`teacher-sessions-${profile.id}`)
       .on("broadcast", { event: "session_request" }, (payload) => {
         const data = payload?.payload;
-        if (data?.session_id && data?.room_url) {
+        if (data?.session_id) {
           setIncomingRequest({
             sessionId: data.session_id,
             studentId: data.student_id,
             studentName: data.student_name || "A Student",
-            roomUrl: data.room_url,
+            roomUrl: data.room_url || `/session/${data.session_id}`,
           });
           setIsModalOpen(true);
         }

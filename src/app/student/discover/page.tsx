@@ -234,7 +234,7 @@ export default function StudentDiscoverPage() {
         user.email?.split("@")[0] ||
         "Student";
 
-      // Create Jitsi Meet private room via API route
+      // Create WebRTC session via API route
       const response = await fetch("/api/create-room", {
         method: "POST",
         headers: {
@@ -248,12 +248,9 @@ export default function StudentDiscoverPage() {
 
       const data = await response.json();
 
-      if (!response.ok || !data.roomUrl || !data.sessionId) {
+      if (!response.ok || !data.sessionId) {
         throw new Error(data.error || "Failed to create video room.");
       }
-
-      // Cache room URL
-      localStorage.setItem("room_url", data.roomUrl);
 
       // Broadcast event to teacher's personal channel
       const teacherChannel = supabase.channel(`teacher-sessions-${teacher.id}`);
@@ -265,7 +262,6 @@ export default function StudentDiscoverPage() {
           student_name: studentName,
           student_id: user.id,
           session_id: data.sessionId,
-          room_url: data.roomUrl,
         },
       });
 
