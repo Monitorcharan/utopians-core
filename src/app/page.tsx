@@ -12,12 +12,17 @@ import {
   ArrowRight,
   CheckCircle2,
   LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuthContext } from "@/context/auth-context";
 
 export default function HomePage() {
-  const { signOut, isAuthenticated } = useAuthContext();
+  const { role, isAuthenticated, signOut } = useAuthContext();
   const currentYear = new Date().getFullYear();
+
+  // Used only for the header dashboard nav link
+  const userDashboard =
+    role === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white via-slate-50/50 to-indigo-50/30 text-slate-900 font-sans selection:bg-indigo-500/10 selection:text-indigo-600">
@@ -49,16 +54,11 @@ export default function HomePage() {
             {isAuthenticated ? (
               <>
                 <Link
-                  href="/student"
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-all shadow-xs"
-                >
-                  Student Portal
-                </Link>
-                <Link
-                  href="/teacher"
+                  href={userDashboard}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-white hover:bg-indigo-500 transition-all shadow-xs"
                 >
-                  Teacher Portal
+                  <LayoutDashboard className="h-3.5 w-3.5" />
+                  <span>Dashboard</span>
                 </Link>
                 <button
                   type="button"
@@ -73,16 +73,16 @@ export default function HomePage() {
             ) : (
               <>
                 <Link
-                  href="/student"
+                  href="/student/login"
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
                 >
-                  Student Portal
+                  Student Login
                 </Link>
                 <Link
-                  href="/teacher"
+                  href="/teacher/login"
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 hover:text-slate-900 transition-all shadow-xs"
                 >
-                  Teacher Portal
+                  Teacher Login
                 </Link>
               </>
             )}
@@ -163,17 +163,40 @@ export default function HomePage() {
 
             <div className="pt-8 mt-6 border-t border-slate-100 space-y-3">
               <Link
-                href="/student"
+                href={
+                  !isAuthenticated
+                    ? "/student/signup"
+                    : role === "student"
+                    ? "/student/dashboard"
+                    : "/student/signup" // Teacher visiting — signup page will show role conflict banner
+                }
                 className="block w-full"
               >
                 <button
                   type="button"
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-semibold text-white shadow-sm shadow-indigo-200 hover:bg-indigo-500 hover:shadow-md transition-all cursor-pointer"
                 >
-                  <span>Go to Student Portal</span>
+                  <span>
+                    {!isAuthenticated
+                      ? "I'm a Student"
+                      : role === "student"
+                      ? "Go to Student Dashboard"
+                      : "Switch to Student Account"}
+                  </span>
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </Link>
+              {!isAuthenticated && (
+                <p className="text-center text-xs text-slate-500">
+                  Already registered?{" "}
+                  <Link
+                    href="/student/login"
+                    className="text-indigo-600 hover:text-indigo-500 font-medium underline underline-offset-2"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              )}
             </div>
           </div>
 
@@ -216,17 +239,40 @@ export default function HomePage() {
 
             <div className="pt-8 mt-6 border-t border-slate-100 space-y-3">
               <Link
-                href="/teacher"
+                href={
+                  !isAuthenticated
+                    ? "/teacher/signup"
+                    : role === "teacher"
+                    ? "/teacher/dashboard"
+                    : "/teacher/signup" // Student visiting — signup page will show role conflict banner
+                }
                 className="block w-full"
               >
                 <button
                   type="button"
                   className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-800 shadow-xs hover:bg-slate-50 hover:border-slate-400 transition-all cursor-pointer"
                 >
-                  <span>Go to Teacher Portal</span>
+                  <span>
+                    {!isAuthenticated
+                      ? "Start Teaching"
+                      : role === "teacher"
+                      ? "Go to Teacher Dashboard"
+                      : "Switch to Teacher Account"}
+                  </span>
                   <ArrowRight className="h-4 w-4 text-slate-400" />
                 </button>
               </Link>
+              {!isAuthenticated && (
+                <p className="text-center text-xs text-slate-500">
+                  Already registered?{" "}
+                  <Link
+                    href="/teacher/login"
+                    className="text-indigo-600 hover:text-indigo-500 font-medium underline underline-offset-2"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              )}
             </div>
           </div>
         </div>
