@@ -114,15 +114,20 @@ function LoginForm() {
           return;
         }
 
+        // STRICT ROLE ENFORCEMENT: Teachers cannot log in on student portal
+        if (profile.role === "teacher") {
+          await supabase.auth.signOut();
+          setGeneralError(
+            "Access Denied: This account is registered as a Teacher. Please use the Teachers Portal (/teachers) to sign in."
+          );
+          setIsLoading(false);
+          return;
+        }
+
         await supabase
           .from("profiles")
           .update({ is_online: true })
           .eq("id", data.user.id);
-
-        if (profile.role === "teacher") {
-          router.replace("/teacher/dashboard");
-          return;
-        }
 
         router.replace("/student/dashboard");
       }

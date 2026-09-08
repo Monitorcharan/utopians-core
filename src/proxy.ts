@@ -58,7 +58,7 @@ export async function proxy(request: NextRequest) {
   // --- Unauthenticated users ---
   if (!user) {
     if (isProtectedRoute && !isAuthPage) {
-      const loginPath = isTeacherRoute ? "/teacher/login" : "/student/login";
+      const loginPath = isTeacherRoute ? "/teachers" : "/students";
       const url = request.nextUrl.clone();
       url.pathname = loginPath;
       return NextResponse.redirect(url);
