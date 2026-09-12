@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import React, { useEffect, useState, useRef } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/client";
@@ -226,10 +228,7 @@ export default function TeacherProfileSettingsPage() {
   if (isLoading) {
     return (
       <DashboardShell role="teacher" activeItem="profile">
-        <div className="p-16 text-center flex flex-col items-center justify-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <span className="text-xs font-mono text-slate-500">Loading profile settings...</span>
-        </div>
+        <BrandLoader compact label="Loading your profile" />
       </DashboardShell>
     );
   }

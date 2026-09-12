@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,7 +24,6 @@ import {
   BookOpen,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   CalendarX2,
   Compass,
   X,
@@ -519,16 +520,7 @@ export default function StudentDashboardPage() {
 
   const popularTopics = ["Python", "JavaScript", "Math", "React", "Calculus", "Physics"];
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F9FAFB] space-y-3">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        <span className="text-sm font-medium text-slate-500 font-mono">
-          Loading student dashboard...
-        </span>
-      </div>
-    );
-  }
+  if (isLoading) return <BrandLoader portal="student" label="Opening your workspace" />;
 
   return (
     <DashboardShell

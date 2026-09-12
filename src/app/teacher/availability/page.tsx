@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import React, { useEffect, useState, useCallback } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/client";
@@ -389,10 +391,7 @@ export default function TeacherAvailabilityPage() {
             </div>
 
             {isLoading ? (
-              <div className="p-12 text-center bg-white rounded-2xl border border-slate-200/90 flex flex-col items-center justify-center gap-2 text-slate-400">
-                <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-                <span className="text-xs font-mono">Loading availability slots...</span>
-              </div>
+              <BrandLoader compact label="Loading your availability" />
             ) : slots.length === 0 ? (
               <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center gap-3">
                 <div className="h-12 w-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">

@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import { RoleWorkspace } from "@/components/layout/role-workspace";
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
@@ -15,7 +17,6 @@ import {
   PlayCircle,
   Users,
   Search,
-  Loader2,
   Star,
   ExternalLink,
   Award,
@@ -396,12 +397,7 @@ export default function TeacherHistoryPage() {
 
         {/* Content Area */}
         {isLoading ? (
-          <div className="py-24 text-center space-y-3">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto" />
-            <p className="text-xs text-slate-500 font-mono">
-              Loading teaching history...
-            </p>
-          </div>
+          <BrandLoader compact label="Loading your session history" />
         ) : filteredSessions.length === 0 ? (
           /* Empty State */
           <div className="py-20 text-center max-w-md mx-auto space-y-4 rounded-2xl border border-dashed border-slate-200 bg-white p-8 shadow-xs">

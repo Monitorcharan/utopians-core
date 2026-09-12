@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -483,16 +485,7 @@ export default function TeacherDashboardPage() {
   const hourlyRate = 45;
   const estimatedTodaysEarnings = Math.max(0, todaysMinutesTaught * (hourlyRate / 60));
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F9FAFB] space-y-3">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        <span className="text-sm font-medium text-slate-500 font-mono">
-          Opening your workspace...
-        </span>
-      </div>
-    );
-  }
+  if (isLoading) return <BrandLoader portal="teacher" label="Opening your workspace" />;
 
   return (
     <DashboardShell

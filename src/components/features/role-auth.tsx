@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, BookOpen, CalendarDays, Check, Eye, EyeOff, GraduationCap, Loader2, ShieldCheck, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthContext } from "@/context/auth-context";
+import { BrandLoader } from "@/components/ui/brand-loader";
 import type { UserRole } from "@/types";
 
 const copy = {
@@ -99,7 +100,7 @@ export function RoleAuth({ role, mode = "login", callbackFailed = false }: { rol
           <p className="portal-eyebrow">YOUR {content.label.toUpperCase()} ACCOUNT</p>
           <h2>{signup ? content.signup : content.welcome}</h2>
           <p className="portal-form-description">{signup ? `Create your ${content.label.toLowerCase()} account to get started.` : content.subtitle}</p>
-          {checkingSession ? <div className="portal-session-loading" role="status"><Loader2 className="animate-spin" size={20} />Getting things ready…</div> : conflictingSession ? (
+          {checkingSession ? <BrandLoader compact label="Getting things ready" /> : conflictingSession ? (
             <div className="portal-notice"><ShieldCheck size={22} /><h3>Use your {content.label.toLowerCase()} account</h3><p>Another account is signed in on this browser. Sign out to continue here.</p><button className="portal-primary" onClick={disconnect} disabled={busy}>Sign out and continue<ArrowRight size={16} /></button></div>
           ) : success ? (
             <div className="portal-notice" role="status"><Check size={24} /><h3>Check your inbox</h3><p>If this address is eligible, you’ll receive a confirmation email. Open it to finish setting up your account, then sign in here.</p><Link className="portal-primary" href={`/${role}/login`}>Back to sign in<ArrowRight size={16} /></Link></div>

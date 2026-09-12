@@ -28,6 +28,7 @@ for (const role of ["student", "teacher"]) {
   test(`${role} login has one submit button and no disabled provider or other-portal links`, () => {
     const { RoleAuth } = loadModule("src/components/features/role-auth.tsx", {
       "next/navigation": { useRouter: () => ({}) },
+      "@/components/ui/brand-loader": loadModule("src/components/ui/brand-loader.tsx", {}),
       "@/lib/supabase/client": {},
       "@/context/auth-context": { useAuthContext: () => ({ isAuthenticated: false, isLoading: false }) },
     });

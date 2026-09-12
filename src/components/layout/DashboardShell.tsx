@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Zap, Compass, BookOpen, History, User, LogOut, Menu, X, LayoutDashboard, CalendarDays, ArrowUpRight, Loader2 } from "lucide-react";
 import { useAuthContext } from "@/context/auth-context";
+import { BrandLoader } from "@/components/ui/brand-loader";
 
 export interface DashboardShellProps {
   role: "student" | "teacher";
@@ -64,7 +65,7 @@ export function DashboardShell({ role, userProfile, activeItem, onProfileClick, 
   }
 
   if (authError) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center"><p role="alert" className="text-sm text-slate-600">{authError}</p><button className="portal-primary" onClick={() => void refreshProfile()}>Try again</button></div>;
-  if (isLoading || !isAuthenticated || sessionRole !== role) return <div className="min-h-screen flex items-center justify-center gap-3 bg-slate-50 text-sm text-slate-500" role="status"><Loader2 className="animate-spin" size={20} />Opening your workspace...</div>;
+  if (isLoading || !isAuthenticated || sessionRole !== role) return <BrandLoader portal={role} label="Opening your workspace" />;
 
   return (
     <div className="workspace" data-portal={role}>

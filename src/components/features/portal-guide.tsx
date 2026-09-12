@@ -13,7 +13,7 @@ export function PortalGuide({ role }: { role: UserRole }) {
     ["Find a moment", "Request a session with an online mentor or choose an available time that fits your day."],
     ["Make progress together", "Talk it through over video, share your screen, and leave feedback after your session."],
   ];
-  return <div className="portal-auth" data-portal={role}>
+  return <div className="portal-auth portal-guide" data-portal={role}>
     <header className="portal-auth-header"><Link href={`/${role}/login`} className="portal-brand"><span className="portal-brand-icon"><Zap size={20} /></span>utopians<span className="portal-brand-light">core</span></Link><Link href={`/${role}/login`} className="portal-label">Sign in<ArrowRight size={14} /></Link></header>
     <main className="max-w-5xl mx-auto px-6 py-12 sm:py-20">
       <p className="portal-eyebrow">THE {teaching ? "TEACHING" : "LEARNING"} GUIDE</p>

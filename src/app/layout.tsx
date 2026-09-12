@@ -4,6 +4,7 @@ import { AppLayoutShell } from "@/components/layout/app-layout-shell";
 import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
 import "./portal.css";
+import "./motion.css";
 
 const inter = Inter({
   variable: "--font-inter",

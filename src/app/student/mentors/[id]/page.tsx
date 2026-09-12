@@ -1,5 +1,7 @@
 "use client";
 
+import { BrandLoader } from "@/components/ui/brand-loader";
+
 import { RoleWorkspace } from "@/components/layout/role-workspace";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -287,14 +289,7 @@ export default function TeacherProfilePage() {
     .substring(0, 2)
     .toUpperCase();
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-3">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        <span className="text-xs font-mono text-slate-500">Loading teacher profile...</span>
-      </div>
-    );
-  }
+  if (isLoading) return <BrandLoader portal="student" label="Loading mentor profile" />;
 
   if (!teacher) {
     return (
