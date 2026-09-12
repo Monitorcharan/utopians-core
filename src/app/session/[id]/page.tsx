@@ -21,7 +21,6 @@ import {
   Clock,
   Calendar,
   ArrowLeft,
-  CheckCircle2,
   AlertCircle,
   RefreshCw,
   User as UserIcon,

@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import { AppLayoutShell } from "@/components/layout/app-layout-shell";
 import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
+import "./portal.css";
 
 const inter = Inter({
   variable: "--font-inter",

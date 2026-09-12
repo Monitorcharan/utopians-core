@@ -44,6 +44,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
       .from("availability_slots")
@@ -114,6 +116,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
     const adminClient = createAdminClient();
 
     // Check for overlapping slots for this teacher
@@ -203,6 +207,8 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
     const adminClient = createAdminClient();
     const { error: deleteError } = await adminClient
       .from("availability_slots")

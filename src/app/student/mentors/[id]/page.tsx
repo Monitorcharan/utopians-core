@@ -1,25 +1,22 @@
 "use client";
 
+import { RoleWorkspace } from "@/components/layout/role-workspace";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Profile, Review, AvailabilitySlot } from "@/types";
 import {
-  Zap,
   Star,
   Clock,
   Calendar,
-  Sparkles,
   CheckCircle2,
   CalendarDays,
   Video,
   ArrowLeft,
   Loader2,
   AlertCircle,
-  User as UserIcon,
   MessageSquare,
-  ChevronRight,
   ShieldCheck,
 } from "lucide-react";
 
@@ -146,7 +143,8 @@ export default function TeacherProfilePage() {
   }, [teacherId, supabase]);
 
   useEffect(() => {
-    loadProfileData();
+    const initialLoad = window.setTimeout(() => void loadProfileData(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [loadProfileData]);
 
   // Calculate Average Rating
@@ -162,7 +160,7 @@ export default function TeacherProfilePage() {
   // Handle Booking Scheduled Slot
   const handleBookSlot = async (slotId: string) => {
     if (!currentUser) {
-      router.push(`/student/login?redirect=/teacher/${teacherId}`);
+      router.push("/student/login");
       return;
     }
 
@@ -208,7 +206,7 @@ export default function TeacherProfilePage() {
     if (!teacher || !teacher.is_online) return;
 
     if (!currentUser) {
-      router.push(`/student/login?redirect=/teacher/${teacherId}`);
+      router.push("/student/login");
       return;
     }
 
@@ -318,7 +316,7 @@ export default function TeacherProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20">
+    <RoleWorkspace role="student" activeItem="discover">
       {/* Toast Alert */}
       {toast && (
         <div
@@ -338,47 +336,9 @@ export default function TeacherProfilePage() {
       )}
 
       {/* 1. TOP NAVIGATION HEADER */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link
-            href="/student/discover"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors group"
-          >
-            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back to Online Mentors</span>
-          </Link>
-
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 text-white shadow-xs">
-              <Zap className="h-4 w-4 fill-current" />
-            </div>
-            <span className="font-bold text-slate-900 text-sm tracking-tight hidden sm:inline">
-              Utopians<span className="text-indigo-600">Core</span>
-            </span>
-          </Link>
-
-          <div>
-            {currentUser ? (
-              <Link
-                href={currentUser.role === "teacher" ? "/teacher/dashboard" : "/student/dashboard"}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 bg-indigo-50/70 border border-indigo-100 rounded-lg px-3 py-1.5 transition-colors"
-              >
-                Go to Dashboard &rarr;
-              </Link>
-            ) : (
-              <Link
-                href={`/student/login?redirect=/teacher/${teacherId}`}
-                className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl px-3.5 py-1.5 shadow-xs transition-colors"
-              >
-                Log In
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
 
       {/* 2. HERO PROFILE CARD */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 space-y-8">
+      <section className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 space-y-8">
         <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-10 shadow-xs relative overflow-hidden">
           {/* Subtle gradient banner accent */}
           <div className="absolute top-0 left-0 right-0 h-28 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-800 opacity-90" />
@@ -699,7 +659,7 @@ export default function TeacherProfilePage() {
             </div>
           )}
         </section>
-      </main>
-    </div>
+      </section>
+    </RoleWorkspace>
   );
 }

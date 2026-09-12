@@ -26,6 +26,10 @@ export async function GET(request: Request) {
         .single();
 
       if (existingProfile) {
+        if (existingProfile.role !== requestedRole) {
+          await supabase.auth.signOut();
+          return NextResponse.redirect(`${origin}/${requestedRole}/login?error=portal_mismatch`);
+        }
         // Profile exists — ALWAYS redirect based on existing role
         // This prevents role switching via OAuth
         const existingRole = existingProfile.role as UserRole;
@@ -48,7 +52,7 @@ export async function GET(request: Request) {
         data.user.email?.split("@")[0] ||
         `${requestedRole}_${data.user.id.slice(0, 6)}`;
 
-      await supabase.from("profiles").upsert({
+      const { error: profileError } = await supabase.from("profiles").insert({
         id: data.user.id,
         username,
         avatar_url: data.user.user_metadata?.avatar_url || null,
@@ -57,11 +61,14 @@ export async function GET(request: Request) {
         skills: [],
       });
 
+      if (profileError) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(`${origin}/${requestedRole}/login?error=profile_setup_failed`);
+      }
+
       const defaultNext =
         requestedRole === "teacher" ? "/teacher/dashboard" : "/student/dashboard";
-      const next = searchParams.get("next") ?? defaultNext;
-
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}${defaultNext}`);
     }
   }
 

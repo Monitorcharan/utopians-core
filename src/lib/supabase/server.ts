@@ -42,9 +42,9 @@ export function createAdminClient() {
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
   const serviceRoleKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "placeholder-key";
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) throw new Error("Server configuration is incomplete: SUPABASE_SERVICE_ROLE_KEY is required.");
 
   return createSupabaseClient<Database>(supabaseUrl, serviceRoleKey);
 }

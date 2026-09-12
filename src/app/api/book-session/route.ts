@@ -53,6 +53,10 @@ export async function POST(request: Request) {
       );
     }
 
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "student") return NextResponse.json({ error: "A student account is required." }, { status: 403 });
+    const { data: teacher } = await supabase.from("profiles").select("role").eq("id", teacherId).single();
+    if (teacher?.role !== "teacher") return NextResponse.json({ error: "Choose a valid teacher." }, { status: 400 });
     const adminClient = createAdminClient();
 
     // 1. Verify availability slot exists and is unbooked

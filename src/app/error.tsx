@@ -1,45 +1,14 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { useEffect } from "react";
+import { AlertCircle, RotateCcw } from "lucide-react";
 
-export default function ErrorBoundary({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  useEffect(() => {
-    console.error("Utopians Core Runtime Error:", error);
-  }, [error]);
-
-  return (
-    <div className="flex min-h-[70vh] flex-col items-center justify-center text-center px-4">
-      <div className="p-4 rounded-2xl bg-red-950/40 border border-red-500/30 text-red-400 mb-6 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-        <AlertTriangle className="h-10 w-10" />
-      </div>
-      <span className="font-mono text-xs font-semibold uppercase tracking-widest text-red-400">
-        Fatal Runtime Interruption
-      </span>
-      <h1 className="text-3xl sm:text-4xl font-extrabold text-white mt-2">
-        Subsystem Exception Caught
-      </h1>
-      <p className="text-slate-400 max-w-md mt-3 text-sm leading-relaxed">
-        An unhandled fault occurred within the core execution boundary. You can attempt to soft-reset the state engine below.
-      </p>
-      {error.digest && (
-        <div className="mt-4 font-mono text-xs text-slate-500 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded">
-          Error Digest: {error.digest}
-        </div>
-      )}
-      <div className="mt-8 flex gap-4">
-        <Button variant="primary" onClick={() => reset()} className="gap-2">
-          <RotateCcw className="h-4 w-4" />
-          Soft Reset Engine
-        </Button>
-      </div>
-    </div>
-  );
+export default function ErrorBoundary({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  useEffect(() => { console.error("Page failed to load:", error); }, [error]);
+  return <div className="min-h-[80vh] flex flex-col items-center justify-center px-6 text-center">
+    <span className="rounded-2xl bg-rose-50 p-4 text-rose-500"><AlertCircle size={30} /></span>
+    <h1 className="mt-6 text-2xl font-semibold text-slate-900">We could not load this page.</h1>
+    <p className="mt-3 text-sm text-slate-500">Please try again. Your account and saved sessions are still there.</p>
+    <button onClick={reset} className="portal-primary mt-7"><RotateCcw size={16} />Try again</button>
+  </div>;
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 interface CreateRoomRequestBody {
   teacherId?: string;
@@ -15,6 +15,11 @@ interface CreateRoomRequestBody {
  */
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Sign in to request a session." }, { status: 401 });
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "student") return NextResponse.json({ error: "Only student accounts can request sessions." }, { status: 403 });
     // 1. Parse JSON payload
     let body: CreateRoomRequestBody;
     try {
@@ -27,6 +32,10 @@ export async function POST(request: Request) {
     }
 
     const { teacherId, studentId, sessionId: providedSessionId } = body;
+
+    if (studentId !== user.id) return NextResponse.json({ error: "You can only request your own sessions." }, { status: 403 });
+    const { data: teacher } = await supabase.from("profiles").select("role").eq("id", teacherId ?? "").single();
+    if (teacher?.role !== "teacher") return NextResponse.json({ error: "Choose a valid teacher." }, { status: 400 });
 
     if (!teacherId || !studentId) {
       return NextResponse.json(
@@ -46,11 +55,9 @@ export async function POST(request: Request) {
         : crypto.randomUUID();
 
     // 3. Create session row in Supabase
-    const supabase = createAdminClient();
-
     const { data: sessionData, error: dbError } = await supabase
       .from("sessions")
-      .upsert({
+      .insert({
         id: sessionId,
         student_id: studentId,
         teacher_id: teacherId,

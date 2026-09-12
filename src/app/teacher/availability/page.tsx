@@ -12,10 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Sparkles,
   CalendarDays,
-  Tag,
-  ArrowRight,
 } from "lucide-react";
 
 export default function TeacherAvailabilityPage() {
@@ -79,7 +76,8 @@ export default function TeacherAvailabilityPage() {
   }, [supabase]);
 
   useEffect(() => {
-    loadData();
+    const initialLoad = window.setTimeout(() => void loadData(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [loadData]);
 
   // Quick preset helper

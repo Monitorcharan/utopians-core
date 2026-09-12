@@ -1,13 +1,12 @@
 "use client";
 
+import { RoleWorkspace } from "@/components/layout/role-workspace";
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Session, Profile } from "@/types";
 import {
-  Zap,
-  ArrowLeft,
   Calendar,
   Clock,
   Video,
@@ -193,36 +192,11 @@ export default function StudentHistoryPage() {
   }, [sessions, selectedStatus, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 pb-16">
+    <RoleWorkspace role="student" activeItem="history">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-xs">
-                <Zap className="h-4 w-4 fill-current" />
-              </div>
-              <span className="font-bold text-slate-900 text-base tracking-tight hidden sm:inline">
-                Utopians<span className="text-indigo-600">Core</span>
-              </span>
-            </Link>
-            <span className="text-slate-300 hidden sm:inline">/</span>
-            <span className="text-xs sm:text-sm font-semibold text-slate-600">
-              Student Session History
-            </span>
-          </div>
-
-          <Link href="/student/dashboard">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Dashboard</span>
-            </Button>
-          </Link>
-        </div>
-      </header>
 
       {/* Main Container */}
-      <main className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <section className="space-y-8">
         {/* Page Hero */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -437,7 +411,7 @@ export default function StudentHistoryPage() {
             })}
           </div>
         )}
-      </main>
+      </section>
 
       {/* Recording Preview Modal */}
       {recordingSession && (
@@ -520,6 +494,6 @@ export default function StudentHistoryPage() {
           </div>
         </div>
       )}
-    </div>
+    </RoleWorkspace>
   );
 }

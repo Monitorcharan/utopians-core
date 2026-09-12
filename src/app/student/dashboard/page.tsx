@@ -173,7 +173,7 @@ export default function StudentDashboardPage() {
       room_url: string;
     }>
   >([]);
-  const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [recentSessions, setRecentSessions] = useState<
     Array<{
       id: string;

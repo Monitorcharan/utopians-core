@@ -1,94 +1,52 @@
 # Utopians Core
 
-> The Intelligent Infrastructure Platform for Autonomous Agents and Neural Compute.
+A tutoring marketplace built with Next.js App Router, React, TypeScript, Tailwind CSS, and Supabase. Students discover mentors and book sessions; teachers manage availability and incoming requests. Live sessions use browser WebRTC with Supabase Realtime signaling.
 
-Utopians Core is an enterprise-grade, high-throughput decentralized platform built with **Next.js 16 (App Router)**, **React 19**, **TypeScript**, and **Tailwind CSS v4**.
+## Run locally
 
----
+1. Install dependencies: `npm ci`.
+2. Copy `.env.example` to `.env.local` and set the Supabase URL, anonymous key, and server-only service-role key.
+3. Apply the SQL files in `supabase/migrations/` in filename order to a new Supabase project. Do not use `reset_database.sql` on a database you want to keep.
+4. Enable email/password authentication in Supabase. Add `http://localhost:3000/auth/callback` and the production callback URL to the allowed redirect URLs if email confirmation is enabled.
+5. Run `npm run dev` and open `http://localhost:3000`.
 
-## 🌟 Key Features
+Never commit `.env.local` or expose `SUPABASE_SERVICE_ROLE_KEY` through a `NEXT_PUBLIC_` variable.
 
-- **Decentralized Neural Mesh**: Virtualized tensor compute pipes for multi-agent autonomous swarms.
-- **Microsecond Consensus**: Deterministic DAG Byzantine Fault Tolerant state execution.
-- **Quantum-Resistant Vault**: Post-quantum cryptographic security utilizing lattice-based primitives.
-- **Real-Time Telemetry**: Live network diagnostic monitors, throughput stats, and cluster health streaming.
-- **Layered Architecture Explorer**: Decoupled Application, Consensus, Data, and Network stack breakdown.
+## Routes
 
----
+- `/`: choose the student or teacher portal.
+- `/student/login`, `/student/signup`: the only student authentication screens.
+- `/teacher/login`, `/teacher/signup`: the only teacher authentication screens.
+- `/student/dashboard`, `/student/discover`, `/student/history`, `/student/mentors/[id]`: student workspace.
+- `/teacher/dashboard`, `/teacher/availability`, `/teacher/history`, `/teacher/profile/settings`: teacher workspace.
+- `/session/[id]`, `/session/[id]/review`: shared session and feedback screens.
+- `/for-students`, `/for-teachers`: role-specific guides.
+- `/api/auth`: the single email/password login and registration endpoint.
+- `/auth/callback`: exchanges email-confirmation auth codes.
 
-## 📂 Project Structure
+Old `/students`, `/teachers`, role root URLs, `/teacher/edit-profile`, and UUID teacher-profile URLs redirect through `next.config.ts`. They do not render additional pages. Google login is not advertised because it is not enabled in the connected Supabase project.
 
-```
-utopians-core/
-├── src/
-│   ├── app/                      # Next.js App Router
-│   │   ├── favicon.ico           # Favicon icon
-│   │   ├── globals.css           # Tailwind CSS v4, custom cyber grid & glass tokens
-│   │   ├── layout.tsx            # Root layout with site metadata, Navbar & Footer
-│   │   ├── page.tsx              # Utopians Core landing and telemetry dashboard
-│   │   ├── loading.tsx           # Suspense skeleton fallback
-│   │   ├── not-found.tsx         # Custom 404 state vector handler
-│   │   └── error.tsx             # Resilient client error boundary
-│   ├── components/
-│   │   ├── ui/                   # Reusable atomic UI elements
-│   │   │   ├── button.tsx        # Styled polymorphic button (primary, glass, ghost)
-│   │   │   ├── card.tsx          # Glassmorphic card with gradient borders
-│   │   │   └── badge.tsx         # Status & category badges with live pulse
-│   │   ├── layout/               # Global layout components
-│   │   │   ├── navbar.tsx        # Sticky frosted-glass header with status indicators
-│   │   │   └── footer.tsx        # Modern footer with ecosystem links & live status
-│   │   └── features/             # Domain-specific feature modules
-│   │       ├── hero-section.tsx       # Hero with live badge, headline, and CTA
-│   │       ├── system-status.tsx      # Real-time node metrics & telemetry showcase
-│   │       ├── modules-grid.tsx       # Core subsystems (Neural, Compute, Security)
-│   │       └── architecture-view.tsx  # Interactive layered architecture explorer
-│   ├── hooks/                    # Reusable React hooks
-│   │   └── use-mounted.ts        # React 19 useSyncExternalStore hydration hook
-│   ├── lib/                      # Utilities and configuration
-│   │   ├── constants.ts          # Nav links, telemetry stats, site config
-│   │   └── utils.ts              # Class merging utility (clsx + tailwind-merge)
-│   └── types/                    # Shared TypeScript interfaces
-│       └── index.ts              # Core system, navigation, and telemetry types
-├── package.json
-├── tsconfig.json
-└── tailwind.config / postcss.config.mjs
-```
+## Authentication
 
----
+The server validates credentials and the stored profile role before returning a dashboard destination. Supabase cookies are preserved across proxy redirects. Client auth context synchronizes profile state without issuing requests inside the auth callback lock. Wrong-role login does not reveal the other account's profile. Session-management APIs authenticate the caller separately from page-level route protection.
 
-## 🚀 Getting Started
+## Checks
 
-### 1. Install Dependencies
+- `npm run lint`
+- `npm test`: isolated route, form, and authentication regression tests; no external accounts are created.
+- `npm run build`
+- Optional live integration test: start the production build on port 3007 and run `node --env-file=.env.local scripts/verify-auth.mjs`. This explicitly creates and cleans up two disposable Supabase accounts. Set `AUTH_TEST_ORIGIN` to check another deployment.
 
-```bash
-npm install
-```
+## Deploy
 
-### 2. Run the Development Server
+The GitHub repository is connected to the Vercel project `utopians1/utopians-core`. Pushing `main` triggers production deployment. Configure the three variables from `.env.example` in Vercel and keep Supabase redirect URLs aligned with the production domain.
 
-```bash
-npm run dev
-```
+## Source layout
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### 3. Run Lint & Type-Check
-
-```bash
-npm run lint
-```
-
-### 4. Build for Production
-
-```bash
-npm run build
-```
-
----
-
-## 🛠️ Tech Stack
-
-- **Framework**: Next.js 16.3 (Turbopack, App Router)
-- **Runtime & UI**: React 19, TypeScript 5
-- **Styling**: Tailwind CSS v4, PostCSS
-- **Icons & Styling Utilities**: Lucide React, `clsx`, `tailwind-merge`
+- `src/app`: route pages, route handlers, global styles, and error/loading screens.
+- `src/components/features`: shared auth form, portal guide, and session rating dialog.
+- `src/components/layout`: role-specific workspace navigation.
+- `src/context`: client authentication state.
+- `src/lib/supabase`: browser and server Supabase clients.
+- `src/types`: shared database types.
+- `supabase/migrations`: schema, row-level policies, storage, and realtime setup.

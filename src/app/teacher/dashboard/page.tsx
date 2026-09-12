@@ -84,7 +84,7 @@ export default function TeacherDashboardPage() {
       room_url: string;
     }>
   >([]);
-  const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const [recentSessions, setRecentSessions] = useState<
     Array<{
       id: string;
@@ -488,7 +488,7 @@ export default function TeacherDashboardPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#F9FAFB] space-y-3">
         <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
         <span className="text-sm font-medium text-slate-500 font-mono">
-          Loading command center...
+          Opening your workspace...
         </span>
       </div>
     );
@@ -1053,7 +1053,7 @@ export default function TeacherDashboardPage() {
                 No Session Requests Yet
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 max-w-sm mx-auto mt-1">
-                Make sure your availability toggle is set to &quot;Online&quot; at the top of the command center. Incoming student calls will trigger an immediate alert here.
+                Make sure your availability toggle is set to &quot;Online&quot; at the top of the workspace. Incoming student calls will trigger an immediate alert here.
               </p>
               {!isOnline && (
                 <div className="mt-4">

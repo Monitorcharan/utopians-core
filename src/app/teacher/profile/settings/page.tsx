@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { createClient } from "@/lib/supabase/client";
 import { Profile } from "@/types";
 import {
-  User,
   Upload,
   Camera,
   Tag,
@@ -16,8 +14,6 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
-  Sparkles,
   FileText,
 } from "lucide-react";
 
@@ -283,15 +279,7 @@ export default function TeacherProfileSettingsPage() {
             </p>
           </div>
 
-          {profile?.id && (
-            <Link
-              href={`/teacher/${profile.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 shadow-2xs transition-all shrink-0"
-            >
-              <span>View Public Profile</span>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          )}
+
         </div>
 
         <form onSubmit={handleSaveChanges} className="space-y-8">

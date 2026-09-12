@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { ReviewUpdate, ReviewInsert } from "@/types";
 
 interface EndSessionRequestBody {
@@ -27,6 +27,9 @@ interface EndSessionRequestBody {
  */
 export async function POST(request: Request) {
   try {
+    const client = await createClient();
+    const { data: { user } } = await client.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Sign in to manage a session." }, { status: 401 });
     // 1. Parse and validate JSON request body
     let body: EndSessionRequestBody;
     try {
@@ -96,6 +99,14 @@ export async function POST(request: Request) {
         { error: `Session not found with id: ${sessionId}` },
         { status: 404 }
       );
+    }
+
+    if (existingSession.student_id !== user.id && existingSession.teacher_id !== user.id) {
+      return NextResponse.json({ error: "You are not a participant in this session." }, { status: 403 });
+    }
+    if ((existingSession.student_id === user.id && (teacherRating !== undefined || teacherComment !== undefined)) ||
+        (existingSession.teacher_id === user.id && (studentRating !== undefined || studentComment !== undefined))) {
+      return NextResponse.json({ error: "You can only submit your own feedback." }, { status: 403 });
     }
 
     // 3. Handle session completion state
