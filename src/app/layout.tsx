@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import { AppLayoutShell } from "@/components/layout/app-layout-shell";
 import { AuthProvider } from "@/context/auth-context";
+import { SitePreloader } from "@/components/features/site-preloader";
 import "./globals.css";
 import "./portal.css";
+import "./preloader.css";
 import "./motion.css";
 
 const inter = Inter({
@@ -37,9 +39,11 @@ export default function RootLayout({
       className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col antialiased font-sans">
-        <AuthProvider>
-          <AppLayoutShell>{children}</AppLayoutShell>
-        </AuthProvider>
+        <SitePreloader>
+          <AuthProvider>
+            <AppLayoutShell>{children}</AppLayoutShell>
+          </AuthProvider>
+        </SitePreloader>
       </body>
     </html>
   );

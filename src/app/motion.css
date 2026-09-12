@@ -13,12 +13,11 @@
 .brand-loader-compact .brand-loader-art { width: min(220px, 90%); }
 .brand-loader-compact .brand-loader-core { font-size: 8px; }
 .brand-loader-compact .brand-loader-label { margin-top: 22px; font-size: 11px; }
-.home-brand-reveal { width: min(270px, 75%); margin: 0 auto 30px; }
 @keyframes brand-dot { 0%, 70%, 100% { transform: translateY(0); opacity: .3; } 35% { transform: translateY(-3px); opacity: 1; } }
 @keyframes content-arrive { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes sidebar-arrive { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: no-preference) {
-  .home-intro > :not(.home-brand-reveal), .home-portal-card, .portal-story, .portal-form-card, .workspace-content > *, .portal-guide main { animation: content-arrive .65s var(--motion-ease) both; }
+  .home-intro > *, .home-portal-card, .portal-story, .portal-form-card, .workspace-content > *, .portal-guide main { animation: content-arrive .65s var(--motion-ease) both; }
   .home-intro > h1 { animation-delay: .07s; }
   .home-intro > p:last-child { animation-delay: .13s; }
   .home-portal-card { animation-delay: .18s; }

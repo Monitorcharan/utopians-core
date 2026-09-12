@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { BrandWordmark } from "@/components/ui/brand-loader";
 import { ArrowRight, BookOpen, GraduationCap, Zap, Video, CalendarDays, MessageCircle } from "lucide-react";
 
 export default function HomePage() {
@@ -11,7 +10,6 @@ export default function HomePage() {
       </header>
       <main className="max-w-5xl mx-auto px-6 pt-12 sm:pt-20 pb-20">
         <div className="home-intro text-center max-w-2xl mx-auto">
-          <div className="home-brand-reveal" aria-label="Utopians"><BrandWordmark /></div>
           <p className="text-[10px] tracking-[.2em] font-semibold text-indigo-600">LIVE LEARNING, MADE PERSONAL</p>
           <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-.04em] leading-[1.13] mt-6">Good questions deserve<br /><span className="text-indigo-600">a real conversation.</span></h1>
           <p className="text-slate-500 text-sm sm:text-base leading-8 max-w-lg mx-auto mt-6">Learn something new. Share what you know. Find your own space for focused, one-to-one sessions.</p>
