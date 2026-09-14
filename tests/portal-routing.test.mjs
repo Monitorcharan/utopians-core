@@ -99,6 +99,39 @@ test("legacy portal URLs redirect directly to canonical routes without duplicate
   assert.equal(redirects.find(item => item.source === "/teacher/edit-profile").destination, "/teacher/profile/settings");
 });
 
+test("booking uses the caller-scoped transaction and returns its committed session", async () => {
+  const slotId = "11111111-1111-4111-8111-111111111111";
+  const teacherId = "33333333-3333-4333-8333-333333333333";
+  const { POST } = loadModule("src/app/api/book-session/route.ts", {
+    "@/lib/supabase/server": { createClient: async () => ({
+      auth: { getUser: async () => ({ data: { user: { id: "student" } } }) },
+      rpc: async (name, args) => {
+        assert.equal(name, "book_available_slot");
+        assert.equal(args.p_slot_id, slotId);
+        assert.equal(args.p_teacher_id, teacherId);
+        return { data: [{ session_id: "committed-session", scheduled_start_time: "2030-01-01", scheduled_end_time: "2030-01-02" }] };
+      },
+    }) },
+  });
+  const response = await POST(new Request("http://localhost/api/book-session", { method: "POST", body: JSON.stringify({ slotId, teacherId }) }));
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).sessionId, "committed-session");
+});
+
+for (const [code, expectedStatus] of [["23505", 409], ["42501", 403], ["P0002", 404], ["22023", 400], ["PGRST202", 503]]) {
+  test(`booking maps database ${code} to HTTP ${expectedStatus} without reporting success`, async () => {
+    const { POST } = loadModule("src/app/api/book-session/route.ts", {
+      "@/lib/supabase/server": { createClient: async () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "student" } } }) },
+        rpc: async () => ({ error: { code, message: "Booking could not complete" } }),
+      }) },
+    });
+    const response = await POST(new Request("http://localhost/api/book-session", { method: "POST", body: JSON.stringify({ slotId: "11111111-1111-4111-8111-111111111111", teacherId: "33333333-3333-4333-8333-333333333333" }) }));
+    assert.equal(response.status, expectedStatus);
+    assert.ok(!(await response.json()).success);
+  });
+}
+
 for (const [path, role, destination] of [
   ["/student/dashboard", null, "/student/login"],
   ["/teacher/dashboard", null, "/teacher/login"],

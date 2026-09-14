@@ -50,3 +50,17 @@ The GitHub repository is connected to the Vercel project `utopians1/utopians-cor
 - `src/lib/supabase`: browser and server Supabase clients.
 - `src/types`: shared database types.
 - `supabase/migrations`: schema, row-level policies, storage, and realtime setup.
+
+## Database permissions and booking rollout
+
+Apply `supabase/migrations/20260912000000_secure_permissions_and_atomic_booking.sql` to the existing project before deploying the new booking endpoint. The migration runs inside one transaction and preserves existing records. It adds a unique slot reference for new bookings, replaces permissive policies, restricts browser-writable columns, and adds the `book_available_slot` function. Existing sessions without a slot reference remain valid.
+
+Booking now calls this database function using the signed-in user's cookies. It locks the chosen slot and reserves it in the same transaction that creates the session. A failed insert rolls everything back. A booked slot cannot be changed or deleted through the teacher UI. Cancelled bookings remain reserved until a separate cancellation/refund workflow is implemented.
+
+`npm test` runs every migration against an isolated PGlite PostgreSQL database and checks permissions, duplicate reservation rejection, rollback, and feedback authorship. PGlite uses one connection, so these tests do not replace a true multi-connection concurrency test against Supabase.
+
+Deploy in this order: apply the SQL migration, deploy the application, then run authenticated booking and concurrency checks. If the migration fails, its transaction rolls back; do not deploy the dependent API. `full_setup.sql` is retired to prevent it from restoring old policies.
+
+The production database originally had only profiles and instant sessions. The reviews migration (`20260908000002`), scheduling/profile migration (`20260908000004`), and security/booking migration (`20260912000000`) were applied together in one transaction through the Supabase Management API. Existing profiles and sessions were preserved. This project was provisioned manually and does not have a CLI migration ledger; inspect the live schema before using `db push` or replaying historical migrations.
+
+Run `node --env-file=.env.local scripts/verify-booking.mjs` to check real concurrent database bookings with disposable accounts. Set `BOOKING_TEST_ORIGIN` to the local or deployed site to also verify login cookies, availability creation, concurrent HTTP bookings (201/409), participant visibility, and booked-slot deletion protection. The script removes its own fixtures afterward.

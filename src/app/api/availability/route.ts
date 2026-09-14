@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/availability
@@ -15,10 +14,9 @@ export async function GET(request: Request) {
     const supabase = await createClient();
 
     if (teacherId) {
-      // Public query for student booking on /teacher/[id]
+      // Public query for student booking on /student/mentors/[id]
       const nowIso = new Date().toISOString();
-      const adminClient = createAdminClient();
-      const { data, error } = await adminClient
+      const { data, error } = await supabase
         .from("availability_slots")
         .select("*")
         .eq("teacher_id", teacherId)
@@ -46,8 +44,7 @@ export async function GET(request: Request) {
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
-    const adminClient = createAdminClient();
-    const { data, error } = await adminClient
+    const { data, error } = await supabase
       .from("availability_slots")
       .select("*")
       .eq("teacher_id", user.id)
@@ -118,16 +115,15 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
-    const adminClient = createAdminClient();
 
     // Check for overlapping slots for this teacher
-    const { data: existingSlots, error: checkError } = await adminClient
+    const { data: existingSlots, error: checkError } = await supabase
       .from("availability_slots")
       .select("id, start_time, end_time")
       .eq("teacher_id", user.id);
 
     if (checkError) {
-      console.warn("Error checking existing slots:", checkError);
+      return NextResponse.json({ error: "Could not verify availability. Please try again." }, { status: 503 });
     } else if (existingSlots) {
       const hasOverlap = existingSlots.some((slot) => {
         const slotStart = new Date(slot.start_time);
@@ -145,13 +141,12 @@ export async function POST(request: Request) {
     }
 
     // Insert new slot
-    const { data: newSlot, error: insertError } = await adminClient
+    const { data: newSlot, error: insertError } = await supabase
       .from("availability_slots")
       .insert({
         teacher_id: user.id,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
-        is_booked: false,
       })
       .select()
       .single();
@@ -209,12 +204,13 @@ export async function DELETE(request: Request) {
 
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     if (profile?.role !== "teacher") return NextResponse.json({ error: "A teacher account is required." }, { status: 403 });
-    const adminClient = createAdminClient();
-    const { error: deleteError } = await adminClient
+    const { data: removed, error: deleteError } = await supabase
       .from("availability_slots")
       .delete()
       .eq("id", slotId)
-      .eq("teacher_id", user.id);
+      .eq("teacher_id", user.id)
+      .eq("is_booked", false)
+      .select("id");
 
     if (deleteError) {
       console.error("Delete slot error:", deleteError);
@@ -224,6 +220,7 @@ export async function DELETE(request: Request) {
       );
     }
 
+    if (!removed?.length) return NextResponse.json({ error: "The slot is booked, unavailable, or does not belong to you." }, { status: 409 });
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err: unknown) {
     console.error("DELETE /api/availability error:", err);

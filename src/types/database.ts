@@ -64,6 +64,7 @@ export interface Database {
           student_id: string;
           teacher_id: string;
           room_url: string;
+          availability_slot_id: string | null;
           started_at: string;
           ended_at: string | null;
           status: SessionStatus;
@@ -76,6 +77,7 @@ export interface Database {
           student_id: string;
           teacher_id: string;
           room_url: string;
+          availability_slot_id?: string | null;
           started_at?: string;
           ended_at?: string | null;
           status?: SessionStatus;
@@ -88,6 +90,7 @@ export interface Database {
           student_id?: string;
           teacher_id?: string;
           room_url?: string;
+          availability_slot_id?: string | null;
           started_at?: string;
           ended_at?: string | null;
           status?: SessionStatus;
@@ -210,7 +213,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      book_available_slot: {
+        Args: { p_slot_id: string; p_teacher_id: string };
+        Returns: { session_id: string; scheduled_start_time: string; scheduled_end_time: string }[];
+      };
     };
     Enums: {
       user_role: UserRole;
