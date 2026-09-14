@@ -129,3 +129,98 @@ test("each reviewer can change only their own fields on a matching completed ses
   await assert.rejects(asUser(student, "UPDATE public.reviews SET teacher_comment = 'forged' WHERE session_id = $1", [id]), { code: "42501" });
   assert.deepEqual((await db.query("SELECT student_rating, teacher_rating FROM public.reviews WHERE session_id = $1", [id])).rows[0], { student_rating: 4, teacher_rating: 5 });
 });
+
+
+async function bookedSlot() {
+  const slotId = await slot();
+  const result = await asUser(student, "SELECT * FROM public.book_available_slot($1, $2)", [slotId, teacher]);
+  return { slotId, id: result.rows[0].session_id, start: result.rows[0].scheduled_start_time };
+}
+const change = (actor, booking, action, target = null, start = booking.start) => asUser(actor,
+  "SELECT public.change_scheduled_session($1, $2, $3, $4)", [booking.id, action, start, target]);
+const reserved = async id => (await db.query("SELECT is_booked FROM public.availability_slots WHERE id = $1", [id])).rows[0].is_booked;
+
+test("teacher cancellation releases the slot, preserves history, and is safe to retry after rebooking", async () => {
+  const booking = await bookedSlot();
+  await change(teacher, booking, "cancel");
+  assert.equal(await reserved(booking.slotId), false);
+  const saved = (await db.query("SELECT status, availability_slot_id, scheduled_start_time FROM public.sessions WHERE id=$1", [booking.id])).rows[0];
+  assert.equal(saved.status, "cancelled");
+  assert.equal(saved.availability_slot_id, null);
+  assert.deepEqual(saved.scheduled_start_time, booking.start);
+  await asUser(otherStudent, "SELECT * FROM public.book_available_slot($1, $2)", [booking.slotId, teacher]);
+  await change(teacher, booking, "cancel");
+  assert.equal(await reserved(booking.slotId), true);
+  assert.equal((await db.query("SELECT * FROM public.session_changes WHERE session_id=$1", [booking.id])).rows.length, 1);
+});
+
+test("only participants can cancel and only the student can reschedule", async () => {
+  const booking = await bookedSlot();
+  const target = await slot();
+  await assert.rejects(change(otherStudent, booking, "cancel"), { code: "P0002" });
+  await assert.rejects(change(otherTeacher, booking, "cancel"), { code: "P0002" });
+  await assert.rejects(change(teacher, booking, "reschedule", target), { code: "42501" });
+  await assert.rejects(asUser(null, "SELECT public.change_scheduled_session($1,'cancel',$2,NULL)", [booking.id, booking.start], "anon"), { code: "42501" });
+  assert.equal(await reserved(booking.slotId), true);
+});
+
+test("rescheduling keeps the session ID, swaps reservations, and writes private updates for both participants", async () => {
+  const booking = await bookedSlot();
+  const target = await slot();
+  await db.query("UPDATE public.availability_slots SET start_time=start_time+interval '2 days',end_time=end_time+interval '2 days' WHERE id=$1", [target]);
+  await change(student, booking, "reschedule", target);
+  assert.equal(await reserved(booking.slotId), false);
+  assert.equal(await reserved(target), true);
+  const row = (await db.query("SELECT * FROM public.sessions WHERE id=$1", [booking.id])).rows[0];
+  assert.equal(row.availability_slot_id, target);
+  assert.equal(row.status, "scheduled");
+  for (const participant of [student, teacher]) {
+    const feed = await asUser(participant, "SELECT * FROM public.session_changes WHERE session_id=$1", [booking.id]);
+    assert.equal(feed.rows.length, 1);
+    assert.equal(feed.rows[0].kind, "rescheduled");
+    assert.deepEqual(feed.rows[0].new_start_time, row.scheduled_start_time);
+  }
+  assert.equal((await asUser(otherStudent, "SELECT * FROM public.session_changes WHERE session_id=$1", [booking.id])).rows.length, 0);
+  await assert.rejects(asUser(student, "UPDATE public.session_changes SET kind='cancelled' WHERE session_id=$1", [booking.id]), { code: "42501" });
+  await assert.rejects(change(student, booking, "cancel"), { code: "23505" });
+  assert.equal(await reserved(target), true);
+});
+
+test("unavailable or wrong-teacher targets leave the original booking intact", async () => {
+  const booking = await bookedSlot();
+  const occupied = await bookedSlot();
+  await assert.rejects(change(student, booking, "reschedule", occupied.slotId), { code: "23505" });
+  const target = await slot();
+  await db.query("UPDATE public.availability_slots SET teacher_id=$1 WHERE id=$2", [otherTeacher, target]);
+  await assert.rejects(change(student, booking, "reschedule", target), { code: "22023" });
+  assert.equal(await reserved(booking.slotId), true);
+  assert.equal((await db.query("SELECT * FROM public.session_changes WHERE session_id=$1", [booking.id])).rows.length, 0);
+});
+
+test("a notification insert failure rolls back both the reschedule and cancellation", async () => {
+  const booking = await bookedSlot();
+  const target = await slot();
+  await db.exec("CREATE FUNCTION public.reject_change_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated update failure'; END $$; CREATE TRIGGER reject_change_test BEFORE INSERT ON public.session_changes FOR EACH ROW EXECUTE FUNCTION public.reject_change_test();");
+  try {
+    await assert.rejects(change(student, booking, "reschedule", target), /simulated update failure/);
+    await assert.rejects(change(student, booking, "cancel"), /simulated update failure/);
+    assert.equal(await reserved(booking.slotId), true);
+    assert.equal(await reserved(target), false);
+    assert.equal((await db.query("SELECT status FROM public.sessions WHERE id=$1", [booking.id])).rows[0].status, "scheduled");
+  } finally { await db.exec("DROP TRIGGER reject_change_test ON public.session_changes; DROP FUNCTION public.reject_change_test()"); }
+});
+
+test("joining-window, active and paid bookings cannot be changed; browser cancellation cannot bypass the RPC", async () => {
+  const booking = await bookedSlot();
+  await assert.rejects(asUser(student, "UPDATE public.sessions SET status='cancelled' WHERE id=$1", [booking.id]), { code: "42501" });
+  await db.query("UPDATE public.sessions SET scheduled_start_time=now()+interval '4 minutes' WHERE id=$1", [booking.id]);
+  const fresh = (await db.query("SELECT scheduled_start_time FROM public.sessions WHERE id=$1", [booking.id])).rows[0].scheduled_start_time;
+  await assert.rejects(change(student, booking, "cancel", null, fresh), { code: "23505" });
+  await db.query("UPDATE public.sessions SET scheduled_start_time=$2, amount=100 WHERE id=$1", [booking.id, booking.start]);
+  await assert.rejects(change(student, booking, "cancel"), { code: "22023" });
+  await db.query("UPDATE public.sessions SET amount=NULL,status='active' WHERE id=$1", [booking.id]);
+  await assert.rejects(change(student, booking, "reschedule", await slot()), { code: "23505" });
+  await db.query("UPDATE public.sessions SET status='scheduled' WHERE id=$1", [booking.id]);
+  await change(student, booking, "cancel");
+  await assert.rejects(asUser(student, "UPDATE public.sessions SET status='active' WHERE id=$1", [booking.id]), { code: "42501" });
+});

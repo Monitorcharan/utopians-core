@@ -25,9 +25,8 @@ export async function GET(request: Request) {
         .order("start_time", { ascending: true });
 
       if (error) {
-        // Table might not be migrated yet or empty
         console.warn("Could not query availability_slots:", error.message);
-        return NextResponse.json({ slots: [] }, { status: 200 });
+        return NextResponse.json({ error: "Could not load available times. Please try again." }, { status: 503 });
       }
 
       return NextResponse.json({ slots: data || [] }, { status: 200 });
@@ -52,13 +51,13 @@ export async function GET(request: Request) {
 
     if (error) {
       console.warn("Could not query teacher slots:", error.message);
-      return NextResponse.json({ slots: [] }, { status: 200 });
+      return NextResponse.json({ error: "Could not load availability. Please try again." }, { status: 503 });
     }
 
     return NextResponse.json({ slots: data || [] }, { status: 200 });
   } catch (err: unknown) {
     console.error("GET /api/availability error:", err);
-    return NextResponse.json({ slots: [] }, { status: 200 });
+    return NextResponse.json({ error: "Could not load availability. Please try again." }, { status: 503 });
   }
 }
 

@@ -299,11 +299,11 @@ export default function StudentHistoryPage() {
                 sessionItem.teacher?.full_name ||
                 sessionItem.teacher?.username ||
                 "Verified Instructor";
-              const durationText = formatDuration(
+              const durationText = sessionItem.status === "cancelled" ? "Not held" : formatDuration(
                 sessionItem.started_at,
                 sessionItem.ended_at
               );
-              const dateText = formatDate(sessionItem.started_at);
+              const dateText = formatDate(sessionItem.scheduled_start_time || sessionItem.started_at);
 
               return (
                 <div

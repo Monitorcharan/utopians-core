@@ -1,5 +1,7 @@
 "use client";
 
+import { BookingActions } from "@/components/features/booking-actions";
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 import { BrandLoader } from "@/components/ui/brand-loader";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -46,6 +48,7 @@ export default function TeacherDashboardPage() {
 
   // Profile & Status State
   const [profile, setProfile] = useState<Profile | null>(null);
+  const sessionRevision = useSessionRefresh(profile?.id, "teacher");
   const [email, setEmail] = useState<string>("");
   const [isOnline, setIsOnline] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -110,8 +113,8 @@ export default function TeacherDashboardPage() {
 
   // 1. Fetch teacher profile & session statistics
   useEffect(() => {
+    let active = true;
     async function loadTeacherProfile() {
-      setIsLoading(true);
       try {
         const {
           data: { user },
@@ -165,6 +168,7 @@ export default function TeacherDashboardPage() {
           .eq("teacher_id", user.id)
           .order("started_at", { ascending: false });
 
+        if (!active) return;
         if (teacherSessions) {
           const completed = teacherSessions.filter((s) => s.status === "completed");
           setCompletedSessionsCount(completed.length);
@@ -210,6 +214,7 @@ export default function TeacherDashboardPage() {
             }
           }
 
+          if (!active) return;
           // Scheduled sessions sorted by scheduled start time
           const scheduled = teacherSessions.filter((s) => s.status === "scheduled");
           scheduled.sort((a, b) => {
@@ -297,7 +302,8 @@ export default function TeacherDashboardPage() {
     }
 
     loadTeacherProfile();
-  }, [router, supabase]);
+    return () => { active = false; };
+  }, [router, supabase, sessionRevision]);
 
   // 2. Real-time Incoming Session Listener
   useEffect(() => {
@@ -890,6 +896,7 @@ export default function TeacherDashboardPage() {
                           <span>Opens 5m before start</span>
                         </Button>
                       )}
+                      <BookingActions sessionId={session.id} startTime={session.scheduled_start_time} role="teacher" canChange={nowMs < opensAtMs} />
                     </div>
                   </Card>
                 );

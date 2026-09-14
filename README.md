@@ -55,7 +55,7 @@ The GitHub repository is connected to the Vercel project `utopians1/utopians-cor
 
 Apply `supabase/migrations/20260912000000_secure_permissions_and_atomic_booking.sql` to the existing project before deploying the new booking endpoint. The migration runs inside one transaction and preserves existing records. It adds a unique slot reference for new bookings, replaces permissive policies, restricts browser-writable columns, and adds the `book_available_slot` function. Existing sessions without a slot reference remain valid.
 
-Booking now calls this database function using the signed-in user's cookies. It locks the chosen slot and reserves it in the same transaction that creates the session. A failed insert rolls everything back. A booked slot cannot be changed or deleted through the teacher UI. Cancelled bookings remain reserved until a separate cancellation/refund workflow is implemented.
+Booking now calls this database function using the signed-in user's cookies. It locks the chosen slot and reserves it in the same transaction that creates the session. A failed insert rolls everything back. A booked slot cannot be changed or deleted through the teacher UI. The session-change migration adds cancellation and rescheduling with safe slot release.
 
 `npm test` runs every migration against an isolated PGlite PostgreSQL database and checks permissions, duplicate reservation rejection, rollback, and feedback authorship. PGlite uses one connection, so these tests do not replace a true multi-connection concurrency test against Supabase.
 
@@ -64,3 +64,11 @@ Deploy in this order: apply the SQL migration, deploy the application, then run 
 The production database originally had only profiles and instant sessions. The reviews migration (`20260908000002`), scheduling/profile migration (`20260908000004`), and security/booking migration (`20260912000000`) were applied together in one transaction through the Supabase Management API. Existing profiles and sessions were preserved. This project was provisioned manually and does not have a CLI migration ledger; inspect the live schema before using `db push` or replaying historical migrations.
 
 Run `node --env-file=.env.local scripts/verify-booking.mjs` to check real concurrent database bookings with disposable accounts. Set `BOOKING_TEST_ORIGIN` to the local or deployed site to also verify login cookies, availability creation, concurrent HTTP bookings (201/409), participant visibility, and booked-slot deletion protection. The script removes its own fixtures afterward.
+
+## Cancellation and rescheduling
+
+Apply `supabase/migrations/20260914000000_session_changes.sql` after the booking migration and before deploying its UI/API. Students and teachers can cancel scheduled sessions until five minutes before the start; only the student can reschedule, with the same teacher. Active, past, and nonzero paid bookings cannot use this flow. Existing sessions without a linked slot are retained; no slot is inferred or released for those legacy records.
+
+`POST /api/session-booking` accepts `sessionId`, `action` (`cancel` or `reschedule`), `expectedStartTime`, and (for rescheduling) `slotId`. The database locks the session and slots, rejects stale requests, and commits reservation changes and a participant-only `session_changes` feed together. Cancellation is idempotent, clears only the live slot reference, and retains the session/date in history. Rescheduling keeps the session ID. Failed changes roll back fully. These are in-app updates, not email or SMS messages.
+
+Both dashboards and the availability page refresh through authenticated Realtime events, on focus, after local actions, and every 30 seconds while visible as a reconnect fallback. Set `BOOKING_TEST_ORIGIN` and `VERIFY_SESSION_CHANGES=1` when running `scripts/verify-booking.mjs` to test the API against disposable accounts, including simultaneous cancellations and competing reschedules.

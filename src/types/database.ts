@@ -11,6 +11,15 @@ export type UserRole = "student" | "teacher";
 export interface Database {
   public: {
     Tables: {
+      session_changes: {
+        Row: {
+          id: string; session_id: string; actor_id: string; kind: "cancelled" | "rescheduled";
+          previous_start_time: string; new_start_time: string | null; created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -213,6 +222,10 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      change_scheduled_session: {
+        Args: { p_session_id: string; p_action: string; p_expected_start_time: string; p_slot_id?: string };
+        Returns: string;
+      };
       book_available_slot: {
         Args: { p_slot_id: string; p_teacher_id: string };
         Returns: { session_id: string; scheduled_start_time: string; scheduled_end_time: string }[];

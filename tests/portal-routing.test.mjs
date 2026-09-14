@@ -78,7 +78,7 @@ test("unconfirmed signup stays on confirmation instead of opening a dashboard", 
   assert.equal((await response.json()).confirmationRequired, true);
 });
 
-for (const endpoint of ["create-room", "end-session", "book-session", "availability"]) {
+for (const endpoint of ["create-room", "end-session", "book-session", "availability", "session-booking"]) {
   test(`guest cannot mutate /api/${endpoint}`, async () => {
     const { POST } = loadModule(`src/app/api/${endpoint}/route.ts`, {
       "@/lib/supabase/server": {
@@ -182,5 +182,27 @@ for (const role of ["student", "teacher"]) {
     const response = await GET(new Request(`http://localhost:3000/auth/callback?code=test&role=${role}`));
     assert.equal(signedOut, true);
     assert.equal(response.headers.get("location"), `http://localhost:3000/${role}/login?error=portal_mismatch`);
+  });
+}
+
+
+for (const [code, status] of [[null,200],["23505",409],["42501",403],["P0002",404],["22023",400],["PGRST202",503]]) {
+  test(`session change maps ${code || 'success'} and uses the authenticated RPC`, async () => {
+    const { POST } = loadModule("src/app/api/session-booking/route.ts", {
+      "@/lib/supabase/server": { createClient: async () => ({
+        auth: { getUser: async () => ({ data: { user: { id: "student" } } }) },
+        rpc: async (name, args) => {
+          assert.equal(name, "change_scheduled_session");
+          assert.equal(args.p_action, "reschedule");
+          assert.equal(args.p_expected_start_time, "2030-01-01T00:00:00Z");
+          assert.ok(!("student_id" in args));
+          return code ? { error: { code, message: "Could not change booking" } } : { data: "changed-session" };
+        },
+      }) },
+    });
+    const response = await POST(new Request("http://localhost/api/session-booking", { method:"POST", body:JSON.stringify({
+      sessionId:"11111111-1111-4111-8111-111111111111", action:"reschedule", expectedStartTime:"2030-01-01T00:00:00Z", slotId:"22222222-2222-4222-8222-222222222222",
+    }) }));
+    assert.equal(response.status,status);
   });
 }

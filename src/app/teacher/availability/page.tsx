@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 import { BrandLoader } from "@/components/ui/brand-loader";
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -21,6 +22,7 @@ export default function TeacherAvailabilityPage() {
   const supabase = createClient();
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  const sessionRevision = useSessionRefresh(profile?.id, "teacher");
   const [email, setEmail] = useState<string>("");
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function TeacherAvailabilityPage() {
   useEffect(() => {
     const initialLoad = window.setTimeout(() => void loadData(), 0);
     return () => window.clearTimeout(initialLoad);
-  }, [loadData]);
+  }, [loadData, sessionRevision]);
 
   // Quick preset helper
   const handleSelectPreset = (minutes: number) => {

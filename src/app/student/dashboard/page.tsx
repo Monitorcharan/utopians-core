@@ -1,5 +1,7 @@
 "use client";
 
+import { BookingActions } from "@/components/features/booking-actions";
+import { useSessionRefresh } from "@/hooks/use-session-refresh";
 import { BrandLoader } from "@/components/ui/brand-loader";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -151,6 +153,7 @@ export default function StudentDashboardPage() {
 
   // Student auth & profile
   const [profile, setProfile] = useState<Profile | null>(null);
+  const sessionRevision = useSessionRefresh(profile?.id, "student");
   const [email, setEmail] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -166,6 +169,7 @@ export default function StudentDashboardPage() {
   const [scheduledSessions, setScheduledSessions] = useState<
     Array<{
       id: string;
+      teacherId: string;
       teacherName: string;
       teacherAvatarUrl: string | null;
       scheduled_start_time: string;
@@ -210,6 +214,7 @@ export default function StudentDashboardPage() {
 
   // 1. Load Student Auth & Profile
   useEffect(() => {
+    let active = true;
     async function loadStudentData() {
       try {
         const {
@@ -271,6 +276,7 @@ export default function StudentDashboardPage() {
           .order("started_at", { ascending: false })
           .limit(5);
 
+        if (!active) return;
         const allRows = [...(scheduledRows || []), ...(sessionRows || [])];
         if (allRows.length > 0) {
           const teacherIds = Array.from(new Set(allRows.map((s) => s.teacher_id).filter(Boolean)));
@@ -279,6 +285,7 @@ export default function StudentDashboardPage() {
             .select("id, full_name, username, avatar_url")
             .in("id", teacherIds);
 
+          if (!active) return;
           const teacherMap: Record<string, { name: string; avatarUrl: string | null }> = {};
           teacherProfiles?.forEach((t) => {
             teacherMap[t.id] = {
@@ -291,6 +298,7 @@ export default function StudentDashboardPage() {
             setScheduledSessions(
               scheduledRows.map((s) => ({
                 id: s.id,
+                teacherId: s.teacher_id,
                 teacherName: teacherMap[s.teacher_id]?.name || "Mentor",
                 teacherAvatarUrl: teacherMap[s.teacher_id]?.avatarUrl || null,
                 scheduled_start_time: s.scheduled_start_time || s.started_at,
@@ -325,7 +333,8 @@ export default function StudentDashboardPage() {
     }
 
     loadStudentData();
-  }, [router, supabase]);
+    return () => { active = false; };
+  }, [router, supabase, sessionRevision]);
 
   // 2. Fetch Online Teachers & Realtime presence
   useEffect(() => {
@@ -843,6 +852,7 @@ export default function StudentDashboardPage() {
                           </Button>
                         </div>
                       )}
+                      <BookingActions sessionId={session.id} startTime={session.scheduled_start_time} role="student" canChange={nowMs < opensAtMs} teacherId={session.teacherId} />
                     </div>
                   </Card>
                 );

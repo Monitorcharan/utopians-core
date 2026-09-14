@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Zap, Compass, BookOpen, History, User, LogOut, Menu, X, LayoutDashboard, CalendarDays, ArrowUpRight, Loader2 } from "lucide-react";
 import { useAuthContext } from "@/context/auth-context";
+import { SessionUpdates } from "@/components/features/session-updates";
 import { BrandLoader } from "@/components/ui/brand-loader";
 
 export interface DashboardShellProps {
@@ -92,7 +93,7 @@ export function DashboardShell({ role, userProfile, activeItem, onProfileClick, 
           <div className="flex items-center gap-3">{headerActions}<button className="workspace-avatar" aria-label="Open your profile" onClick={openProfile}>{initials}</button><button className="text-xs text-slate-500 p-2" aria-label="Sign out" disabled={loggingOut} onClick={logout}><LogOut size={17} /></button></div>
         </header>
         {logoutError && <p className="p-4 text-sm text-rose-600" role="alert">{logoutError}</p>}
-        <main className="workspace-content">{children}</main>
+        <main className="workspace-content"><SessionUpdates role={role} />{children}</main>
       </div>
       <dialog ref={profileDialog} className="m-auto w-[calc(100%-32px)] max-w-md rounded-2xl border border-slate-200 p-7 backdrop:bg-slate-950/35" onClick={event => { if (event.target === event.currentTarget) profileDialog.current?.close(); }}>
         <div className="flex items-center justify-between mb-6"><h2 className="text-lg font-semibold">My profile</h2><button aria-label="Close profile" onClick={() => profileDialog.current?.close()}><X size={19} /></button></div>

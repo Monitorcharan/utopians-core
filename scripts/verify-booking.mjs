@@ -80,6 +80,58 @@ try {
     assert.equal(teacherSession.data.length, 1);
     assert.equal((await request(teacher, "/api/availability", { slotId: httpSlot.id }, "DELETE")).status, 409);
     console.log("PASS application booking: cookie login, role checks, concurrent 201/409 responses, participant privacy, booked-slot deletion blocked");
+    if (process.env.VERIFY_SESSION_CHANGES === "1") {
+      const winner = [student, otherStudent][winnerIndex];
+      const stranger = [student, otherStudent][1 - winnerIndex];
+      const extraSlots = [];
+      for (const days of [3, 4]) {
+        const response = await request(teacher, "/api/availability", {
+          startTime: new Date(Date.now() + days * 86400000).toISOString(),
+          endTime: new Date(Date.now() + days * 86400000 + 3600000).toISOString(),
+        });
+        assert.equal(response.status, 201);
+        const { slot } = await response.json();
+        slots.push(slot.id); extraSlots.push(slot);
+      }
+      const move = { sessionId, action: "reschedule", expectedStartTime: httpSlot.start_time, slotId: extraSlots[0].id };
+      assert.equal((await request(stranger, "/api/session-booking", move)).status, 404);
+      assert.equal((await request(teacher, "/api/session-booking", move)).status, 403);
+      const moved = await request(winner, "/api/session-booking", move);
+      assert.equal(moved.status, 200, await moved.clone().text());
+      const oldSlot = await teacher.client.from("availability_slots").select("is_booked").eq("id", httpSlot.id).single();
+      assert.equal(oldSlot.data?.is_booked, false);
+      for (const account of [teacher, winner, stranger]) {
+        const feed = await account.client.from("session_changes").select("kind,new_start_time").eq("session_id", sessionId);
+        assert.ifError(feed.error);
+        assert.equal(feed.data.length, account === stranger ? 0 : 1);
+      }
+      const cancel = { sessionId, action: "cancel", expectedStartTime: extraSlots[0].start_time };
+      const cancels = await Promise.all([request(teacher, "/api/session-booking", cancel), request(winner, "/api/session-booking", cancel)]);
+      assert.deepEqual(cancels.map(response => response.status), [200, 200]);
+      const record = await winner.client.from("sessions").select("status").eq("id", sessionId).single();
+      assert.equal(record.data?.status, "cancelled");
+      const cancellationEvents = await winner.client.from("session_changes").select("id").eq("session_id", sessionId).eq("kind", "cancelled");
+      assert.equal(cancellationEvents.data?.length, 1);
+      const rebook = await request(stranger, "/api/book-session", { slotId: extraSlots[0].id, teacherId: teacher.id });
+      assert.equal(rebook.status, 201);
+      const { sessionId: rebookedId } = await rebook.json();
+      assert.equal((await request(teacher, "/api/session-booking", cancel)).status, 200);
+      const occupied = await teacher.client.from("availability_slots").select("is_booked").eq("id", extraSlots[0].id).single();
+      assert.equal(occupied.data?.is_booked, true, "Cancellation retry must not release another student's booking");
+      const race = await Promise.all([httpSlot, extraSlots[1]].map(slot => request(stranger, "/api/session-booking", {
+        sessionId: rebookedId, action: "reschedule", expectedStartTime: extraSlots[0].start_time, slotId: slot.id,
+      })));
+      assert.deepEqual(race.map(response => response.status).sort(), [200, 409], "Only one stale-tab reschedule can succeed");
+      const current = await stranger.client.from("sessions").select("scheduled_start_time,availability_slot_id").eq("id", rebookedId).single();
+      assert.ifError(current.error);
+      const conflict = await request(stranger, "/api/session-booking", {
+        sessionId: rebookedId, action: "reschedule", expectedStartTime: current.data.scheduled_start_time, slotId: created.data.id,
+      });
+      assert.equal(conflict.status, 409);
+      const preserved = await teacher.client.from("availability_slots").select("is_booked").eq("id", current.data.availability_slot_id).single();
+      assert.equal(preserved.data?.is_booked, true);
+      console.log("PASS session changes: reschedule, private updates, concurrent cancellation, history retention, slot reuse, safe retries and racing reschedules");
+    }
   }
 } finally {
   // Remove sessions first so the new slot foreign key does not obstruct cleanup.
